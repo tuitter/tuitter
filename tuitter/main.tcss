@@ -957,13 +957,6 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     border-title-style: bold;
 }
 
-/* Conversation cursor */
-.conversation-item.vim-cursor {
-    background: $primary-dark;
-    color: $text-primary;
-    border: heavy $primary;
-    text-style: bold;
-}
 
 .panel-header {
     background: $bg-dark;
@@ -996,18 +989,20 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     border: solid $border-hover;
 }
 
-/* Selected state (when opened) */
-.conversation-item.selected {
-    background: $primary-dark;
-    color: $text-primary;
-    text-style: bold;
-    border: heavy $primary;
-}
+
 
 /* Make vim-cursor visually consistent */
 .conversation-item.vim-cursor {
     background: $bg-highlight;
     color: $text-primary;
+    border: heavy $primary;
+}
+
+/* Selected state (when opened) */
+.conversation-item.selected {
+    background: $primary-dark;
+    color: $text-primary;
+    text-style: bold;
     border: heavy $primary;
 }
 
@@ -1122,19 +1117,30 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
    accidentally override the user's own bubble. We do not use a separate
    `.me` class — `sent` is sufficient.
 */
+
 .chat-message.sent {
-    background: $chat-sent;
-    border: solid $chat-sent-border;
+    background: #3a2a4a;
     color: $text-primary;
+    align: right top;
+    margin-left: 20;
+    border: solid $dracula-purple;
+    text-align: right;
+    margin-top: 1;
+    margin-bottom: 1;
 }
 
 /* Ensure received messages also win over per-sender rules: place this
    after the sender-* rules so per-sender backgrounds don't override
    the intended received palette. */
 .chat-message.received {
-    background: $chat-received;
-    border: solid $chat-received-border;
+    background: #2a3a2a;
     color: $text-primary;
+    align: left top;
+    margin-right: 20;
+    border: solid $dracula-green;
+    text-align: left;
+    margin-top: 1;
+    margin-bottom: 1;
 }
 
 /* Selected/keyboard focus state for messages (vim-mode selection) */

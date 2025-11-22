@@ -1073,99 +1073,48 @@ class ConversationItem(Static):
         )
 
     def on_click(self) -> None:
-        """Open this conversation when clicked with the mouse."""
+        """Handle click to open the conversation"""
         try:
-            # If there's a conversations list, update its cursor_position so
-            # the clicked item becomes visually focused (matches keyboard nav).
-            try:
-                convs_list = self.app.query_one("#conversations", ConversationsList)
-                items = list(convs_list.query(".conversation-item"))
-                if self in items:
-                    convs_list.cursor_position = items.index(self)
-            except Exception:
-                pass
-
-            # Determine username to display (other participant)
+            # Get the other participant's username
             current_user = get_username() or "yourname"
-            other_participants = [
-                h for h in self.conversation.participant_handles if h != current_user
-            ]
-            username = (
-                other_participants[0]
-                if other_participants
-                else self.conversation.participant_handles[0]
-                if self.conversation.participant_handles
-                else "unknown"
-            )
+            other_participants = [h for h in self.conversation.participant_handles if h != current_user]
+            username = other_participants[0] if other_participants else self.conversation.participant_handles[0] if self.conversation.participant_handles else "unknown"
 
-            # Update chat view
-            try:
-                chat_view = self.app.query_one("#chat", ChatView)
-                chat_view.conversation_id = self.conversation.id
-                chat_view.conversation_username = username
-
-                # Reload messages in the chat view
-                chat_view.remove_children()
-                chat_view.mount_all(chat_view.compose())
+            # Find the ConversationsList parent
+            conv_list = self.parent
+            if isinstance(conv_list, ConversationsList):
+                # Find which index this conversation is
+                items = list(conv_list.query(".conversation-item"))
                 try:
-                    chat_view.focus_last_message()
-                except Exception:
-                    try:
-                        chat_view.focus()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                    index = items.index(self)
+                    conv_list.selected_position = index
+                    conv_list.cursor_position = index
+                except ValueError:
+                    pass
 
-            # Mark this conversation as read locally, persist to server, and refresh the item text and header
-            try:
-                if getattr(self.conversation, "unread", False):
-                    # Persist read state to the server if possible
-                    try:
-                        api.mark_conversation_read(int(self.conversation.id))
-                    except Exception:
-                        # Non-fatal if server call fails; continue to update UI locally
-                        pass
+            # Get MessagesScreen parent container
+            messages_screen = self.parent
+            while messages_screen is not None:
+                if isinstance(messages_screen, MessagesScreen):
+                    break
+                messages_screen = messages_screen.parent
 
-                    # Update local model so UI shows it as read immediately
-                    self.conversation.unread = False
+            if isinstance(messages_screen, MessagesScreen):
+                messages_screen._open_chat_view(self.conversation.id, username)
 
-                    # Refresh this item's rendered text
-                    try:
-                        self.update(self.render())
-                    except Exception:
-                        pass
-
-                    # Update conversations header unread count if present
-                    try:
-                        convs_list = self.app.query_one(
-                            "#conversations", ConversationsList
-                        )
-                        if (
-                            hasattr(convs_list, "_conversations")
-                            and convs_list._conversations is not None
-                        ):
-                            # update the corresponding conversation object in stored list
-                            for c in convs_list._conversations:
-                                if int(c.id) == int(self.conversation.id):
-                                    c.unread = False
-                                    break
-                            unread_count = len(
-                                [
-                                    c
-                                    for c in convs_list._conversations
-                                    if getattr(c, "unread", False)
-                                ]
-                            )
-                            try:
-                                header = convs_list.query_one(".panel-header", Static)
-                                header.update(f"conversations | {unread_count} unread")
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                # Focus the chat view
+                try:
+                    chat_views = list(messages_screen.query("ChatView"))
+                    if chat_views:
+                        chat_views[0].focus()
+                        # Also focus the input field
+                        try:
+                            msg_input = chat_views[0].query_one("#message-input", Input)
+                            msg_input.focus()
+                        except:
+                            pass
+                except:
+                    pass
         except Exception:
             pass
 
@@ -1175,7 +1124,7 @@ class ChatMessage(Static):
         super().__init__(**kwargs)
         self.message = message
         is_sent = (message.sender or "").lower() == (current_user or "").lower()
-        # Add sent/received class plus a 'me' class for messages from the current user
+        # Add sent/received class plus a 'me' class for messages from the current userq
         # Add sent/received class; avoid adding a separate 'me' class
         # as 'sent' is sufficient and avoids duplicate styling rules.
         self.add_class("sent" if is_sent else "received")
@@ -1631,7 +1580,9 @@ class Sidebar(VerticalScroll):
         with commands_container:
             # Show only screen-specific commands to save space
             if self.current_screen == "messages":
+                yield CommandItem(":m", "dm user", classes="command-item")
                 yield CommandItem(":n", "new msg", classes="command-item")
+                yield CommandItem(":r", "reply to msg", classes="command-item")
             elif self.current_screen in ("timeline", "discover"):
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
@@ -3040,6 +2991,7 @@ class NotificationsScreen(Container):
 
 class ConversationsList(VerticalScroll):
     cursor_position = reactive(0)
+    selected_position = reactive(-1)
     can_focus = True
     # Track whether the list has performed its initial mount setup
     has_initialized = False
@@ -3067,6 +3019,7 @@ class ConversationsList(VerticalScroll):
     def on_mount(self) -> None:
         """Watch for cursor position changes"""
         self.watch(self, "cursor_position", self._update_cursor)
+        self.watch(self, "selected_position", self._update_selected)
         # Only perform initial focus and cursor setup the first time the list mounts.
         try:
             if not getattr(self, "has_initialized", False):
@@ -3099,6 +3052,23 @@ class ConversationsList(VerticalScroll):
                 item.add_class("vim-cursor")
                 # Ensure the cursor is visible
                 self.scroll_to_widget(item, top=True)
+        except Exception:
+            pass
+
+    def _update_selected(self) -> None:
+        """Update the selected position (blue background for open conversation)"""
+        try:
+            # Find all conversation items
+            items = list(self.query(".conversation-item"))
+
+            # Remove selected from all items
+            for item in items:
+                item.remove_class("selected")
+
+            # Add selected to the open conversation
+            if 0 <= self.selected_position < len(items):
+                item = items[self.selected_position]
+                item.add_class("selected")
         except Exception:
             pass
 
@@ -3174,41 +3144,28 @@ class ConversationsList(VerticalScroll):
         if self.app.command_mode:
             return
         try:
-            convs = getattr(self, "_conversations", None)
-            if convs is None:
-                convs = api.get_conversations()
+            conversations = api.get_conversations()
+            if 0 <= self.cursor_position < len(conversations):
+                conv = conversations[self.cursor_position]
+                # Mark this conversation as selected (blue background)
+                self.selected_position = self.cursor_position
 
-            if 0 <= self.cursor_position < len(convs):
-                conv = convs[self.cursor_position]
                 # Get the other participant's username
                 current_user = get_username() or "yourname"
-                other_participants = [
-                    h for h in conv.participant_handles if h != current_user
-                ]
-                username = (
-                    other_participants[0]
-                    if other_participants
-                    else conv.participant_handles[0]
-                    if conv.participant_handles
-                    else "unknown"
-                )
+                other_participants = [h for h in conv.participant_handles if h != current_user]
+                username = other_participants[0] if other_participants else conv.participant_handles[0] if conv.participant_handles else "unknown"
 
-                # Update the chat view with this conversation
-                chat_view = self.app.query_one("#chat", ChatView)
-                chat_view.conversation_id = conv.id
-                chat_view.conversation_username = username
+                # Get MessagesScreen parent container
+                messages_screen = self.parent
+                if isinstance(messages_screen, MessagesScreen):
+                    messages_screen._open_chat_view(conv.id, username)
 
-                # Reload messages
-                chat_view.remove_children()
-                chat_view.mount_all(chat_view.compose())
-
-                # Focus the chat view and select the last message
-                try:
-                    chat_view.focus_last_message()
-                except Exception:
+                    # Focus the chat view
                     try:
-                        chat_view.focus()
-                    except Exception:
+                        chat_views = list(messages_screen.query("ChatView"))
+                        if chat_views:
+                            chat_views[0].focus()
+                    except:
                         pass
         except Exception:
             pass
@@ -3379,57 +3336,19 @@ class ChatView(VerticalScroll):
 
     def watch_cursor_position(self, old_position: int, new_position: int) -> None:
         """Update the cursor when position changes"""
-        # Treat the input as the final navigable item (index == len(messages))
-        messages = list(self.query(".chat-message"))
-
         # Remove cursor from old position
-        try:
-            if old_position < len(messages):
-                old_msg = messages[old_position]
-                if "vim-cursor" in old_msg.classes:
-                    old_msg.remove_class("vim-cursor")
-            elif old_position == len(messages):
-                # old position was the input - remove visual indicator
-                try:
-                    inp = self.query_one("#message-input", Input)
-                    inp.remove_class("vim-cursor")
-                    # Only blur if input is not actively in insert mode
-                    if inp.has_focus and not self.input_active:
-                        try:
-                            inp.blur()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        messages = self.query(".chat-message")
+        if old_position < len(messages):
+            old_msg = messages[old_position]
+            if "vim-cursor" in old_msg.classes:
+                old_msg.remove_class("vim-cursor")
 
         # Add cursor to new position
-        try:
-            if new_position < len(messages):
-                new_msg = messages[new_position]
-                new_msg.add_class("vim-cursor")
-                # Scroll message into view
-                self.scroll_to_widget(new_msg)
-            elif new_position == len(messages):
-                # Select the input (visual indicator) but do NOT enter insert mode.
-                try:
-                    inp = self.query_one("#message-input", Input)
-                    inp.add_class("vim-cursor")
-                    # Ensure ChatView retains focus so vim keys are handled here
-                    try:
-                        self.focus()
-                    except Exception:
-                        pass
-                    # Ensure input area is visible at the bottom
-                    try:
-                        self.scroll_end(animate=False)
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        if new_position < len(messages):
+            new_msg = messages[new_position]
+            new_msg.add_class("vim-cursor")
+
+            self.scroll_to_widget(new_msg)
 
     def focus_last_message(self) -> None:
         """Focus and select the last message in the chat after messages have mounted."""
@@ -3536,6 +3455,7 @@ class MessagesScreen(Container):
     def __init__(self, username: str = None, **kwargs):
         super().__init__(**kwargs)
         self.dm_username = username
+        self._switching = False
 
     def compose(self) -> ComposeResult:
         yield Sidebar(current="messages", id="sidebar")
@@ -3595,6 +3515,64 @@ class MessagesScreen(Container):
             msg_input.focus()
         except:
             pass
+
+    def _open_chat_view(self, conversation_id: int, username: str) -> None:
+        """Open or update the chat view with a specific conversation"""
+        # Prevent concurrent switches
+        if self._switching:
+            return
+
+        try:
+            # Remove empty state if it exists
+            try:
+                empty_state = self.query_one("#chat-empty-state")
+                empty_state.remove()
+            except:
+                pass
+
+            # Check if any chat view already exists
+            existing_chats = list(self.query("ChatView"))
+
+            if existing_chats:
+                # Check if we're already viewing this conversation
+                for chat_view in existing_chats:
+                    if chat_view.conversation_id == conversation_id:
+                        # Already viewing this conversation, do nothing
+                        return
+
+                # Different conversation - need to switch
+                self._switching = True
+                # Remove all existing chat views
+                for chat_view in existing_chats:
+                    chat_view.remove()
+                # Use set_timer with delay to ensure removal completes before mounting
+                self.set_timer(0.1, lambda: self._mount_new_chat(conversation_id, username))
+            else:
+                # No chat view exists, create it
+                chat_view = ChatView(conversation_id=conversation_id, username=username, id="chat")
+                self.mount(chat_view)
+        except Exception as e:
+            # Handle error silently
+            self._switching = False
+            pass
+
+    def _mount_new_chat(self, conversation_id: int, username: str) -> None:
+        """Mount a new chat view after old one has been removed"""
+        try:
+            # Remove any existing chat views (should already be gone, but double check)
+            for existing in self.query("ChatView"):
+                existing.remove()
+
+            # Create new chat view with standard "chat" ID for CSS
+            new_chat_view = ChatView(conversation_id=conversation_id, username=username, id="chat")
+            self.mount(new_chat_view)
+            # Scroll to bottom to show latest messages
+            self.call_after_refresh(lambda: new_chat_view.scroll_end(animate=False))
+        except Exception as e:
+            self.app.notify(f"Error creating chat: {e}", timeout=2)
+        finally:
+            # Reset switching flag
+            self._switching = False
 
 
 class SettingsPanel(VerticalScroll):
@@ -5042,53 +5020,61 @@ class Proj101App(App):
         }
         if screen_name in screen_map:
             self._switching = True  # Set flag to prevent concurrent switches
+            current_screen = self.screen
 
-            for container in self.query("#screen-container"):
+            for container in current_screen.query("#screen-container"):
                 container.remove()
             ScreenClass, footer_text = screen_map[screen_name]
-            self.call_after_refresh(
-                self.mount, ScreenClass(id="screen-container", **kwargs)
-            )
 
-            # Update header based on screen (guarded: header may not be mounted yet)
-            try:
-                header = self.query_one("#app-header", Static)
-                if screen_name == "user_profile" and "username" in kwargs:
-                    header.update(f"tuitter [@{kwargs['username']}] @yourname")
-                elif screen_name == "messages" and "username" in kwargs:
-                    header.update(f"tuitter [dm:@{kwargs['username']}] @yourname")
-                else:
-                    header.update(f"tuitter [{screen_name}] @yourname")
-            except Exception:
-                # Header widget isn't present (e.g. main UI not mounted yet) — skip update
-                pass
+            def mount_new_screen():
+                current_screen.mount(ScreenClass(id="screen-container", **kwargs))
+            
+            self.call_after_refresh(mount_new_screen)
 
-            self.query_one("#app-footer", Static).update(footer_text)
-            self.current_screen_name = screen_name
+            def update_ui():
+                try:
+                    header = current_screen.query_one("#app-header", Static)
+                    if screen_name == "user_profile" and "username" in kwargs:
+                        header.update(f"tuitter [@{kwargs['username']}] @yourname")
+                    elif screen_name == "messages" and "username" in kwargs:
+                        header.update(f"tuitter [dm:@{kwargs['username']}] @yourname")
+                    else:
+                        header.update(f"tuitter [{screen_name}] @yourname")
+                except Exception:
+                    pass
 
-            # Update top navbar
-            try:
-                self.query_one("#top-navbar", TopNav).update_active(screen_name)
-            except Exception:
-                pass
+                # Update footer
+                try:
+                    current_screen.query_one("#app-footer", Static).update(footer_text)
+                except Exception:
+                    pass
 
-            # Update sidebar (if it exists)
-            try:
-                sidebar = self.query_one("#sidebar", Sidebar)
-                # For user profile view, highlight discover in sidebar
-                if screen_name == "user_profile":
-                    sidebar.update_active("discover")
-                elif screen_name == "messages":
-                    sidebar.update_active("messages")
-                else:
-                    sidebar.update_active(screen_name)
-            except Exception:
-                pass
+                # Update top navbar
+                try:
+                    current_screen.query_one("#top-navbar", TopNav).update_active(screen_name)
+                except Exception:
+                    pass
 
-            # Focus the main content area after screen switch
-            self.call_after_refresh(self._focus_main_content_for_screen, screen_name)
+                # Update sidebar (if it exists)
+                try:
+                    sidebar = current_screen.query_one("#sidebar", Sidebar)
+                    # For user profile view, highlight discover in sidebar
+                    if screen_name == "user_profile":
+                        sidebar.update_active("discover")
+                    elif screen_name == "messages":
+                        sidebar.update_active("messages")
+                    else:
+                        sidebar.update_active(screen_name)
+                except Exception:
+                    pass
+                
+                self.current_screen_name = screen_name
+                
+                # Focus the main content area after screen switch
+                self._focus_main_content_for_screen(screen_name)
 
-            # Reset the switching flag after a brief delay
+            self.call_after_refresh(update_ui)
+
             self.set_timer(0.1, lambda: setattr(self, "_switching", False))
 
     def _focus_main_content_for_screen(self, screen_name: str) -> None:
