@@ -314,7 +314,15 @@ class RealAPI(APIInterface):
 
     def get_user_settings(self) -> UserSettings:
         data = self._get("/settings")
-        return UserSettings(**data)
+        # Filter out fields that don't belong to UserSettings
+        # (API may return username, display_name, bio which belong to User model)
+        settings_fields = {
+            'user_id', 'email_notifications', 'show_online_status',
+            'private_account', 'github_connected', 'gitlab_connected',
+            'google_connected', 'discord_connected', 'ascii_pic', 'updated_at'
+        }
+        filtered_data = {k: v for k, v in data.items() if k in settings_fields}
+        return UserSettings(**filtered_data)
 
     def update_user_settings(self, settings: UserSettings) -> bool:
         self._post("/settings", json_payload=settings.__dict__)

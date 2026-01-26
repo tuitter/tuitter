@@ -1580,8 +1580,7 @@ class Sidebar(VerticalScroll):
         with commands_container:
             # Show only screen-specific commands to save space
             if self.current_screen == "messages":
-                yield CommandItem(":m", "dm user", classes="command-item")
-                yield CommandItem(":n", "new msg", classes="command-item")
+                yield CommandItem(":m", "new msg", classes="command-item")
                 yield CommandItem(":r", "reply to msg", classes="command-item")
             elif self.current_screen in ("timeline", "discover"):
                 yield CommandItem(":n", "new post", classes="command-item")
@@ -3588,11 +3587,13 @@ class SettingsPanel(VerticalScroll):
 
         try:
             settings = api.get_user_settings()
+            user = api.get_current_user()
         except Exception:
             # If the API call fails, provide a lightweight fallback so the
             # screen still composes and shows an error message that can be
             # replaced once on_mount runs.
             settings = None
+            user = None
 
         # Header
         yield Static("settings.profile | line 1", classes="panel-header")
@@ -3608,22 +3609,27 @@ class SettingsPanel(VerticalScroll):
 
         # Display current ascii avatar if available
         avatar_text = (
-            getattr(settings, "ascii_pic", "") if settings else "(not available)"
+            getattr(settings, "ascii_pic", "") if settings else (user.ascii_pic if user else "(not available)")
         )
         yield Static(avatar_text, id="profile-picture-display", classes="ascii-avatar")
 
         # Account information
         yield Static("\n→ Account Information", classes="settings-section-header")
         username = get_username()
-        if username is None and settings:
-            username = getattr(settings, "username", "yourname")
+        if username is None:
+            if user:
+                username = user.username
+            elif settings:
+                username = getattr(settings, "username", "yourname")
+            else:
+                username = "yourname"
         yield Static(f"  Username:\n  @{username}", classes="settings-field")
-        if settings:
+        if user:
             yield Static(
-                f"\n  Display Name:\n  {settings.display_name}",
+                f"\n  Display Name:\n  {user.display_name}",
                 classes="settings-field",
             )
-            yield Static(f"\n  Bio:\n  {settings.bio}", classes="settings-field")
+            yield Static(f"\n  Bio:\n  {user.bio}", classes="settings-field")
         else:
             yield Static("\n  Display Name:\n  (loading)", classes="settings-field")
             yield Static("\n  Bio:\n  (loading)", classes="settings-field")
@@ -4161,10 +4167,12 @@ class ProfilePanel(VerticalScroll):
         profile_container = Container(classes="profile-center-container")
 
         with profile_container:
-            yield Static(settings.ascii_pic, classes="profile-avatar-large")
+            # Use user.ascii_pic, fallback to settings if available
+            avatar_pic = user.ascii_pic if user and user.ascii_pic else (getattr(settings, "ascii_pic", "") if settings else "")
+            yield Static(avatar_pic, classes="profile-avatar-large")
             username = get_username()
             if username is None:
-                username = settings.username
+                username = user.username if user else "yourname"
             yield Static(f"@{username}", classes="profile-username-display")
 
             stats_row = Container(classes="profile-stats-row")
@@ -4181,7 +4189,9 @@ class ProfilePanel(VerticalScroll):
             bio_container = Container(classes="profile-bio-container")
             bio_container.border_title = "Bio"
             with bio_container:
-                yield Static(f"{settings.bio}", classes="profile-bio-display")
+                # Use user.bio instead of settings.bio
+                bio_text = user.bio if user and user.bio else ""
+                yield Static(f"{bio_text}", classes="profile-bio-display")
             yield bio_container
 
         yield profile_container
@@ -4563,6 +4573,15 @@ class DraftsPanel(VerticalScroll):
             return
         self.selected_action = "delete"
 
+    def key_q(self) -> None:
+        """Exit drafts screen with q key"""
+        if self.app.command_mode:
+            return
+        try:
+            self.app.pop_screen()
+        except Exception:
+            pass
+
     def on_key(self, event) -> None:
         """Handle g+g key combination for top, enter for actions, and escape for command mode"""
         if event.key == "escape":
@@ -4685,7 +4704,7 @@ class DraftsPanel(VerticalScroll):
         self.cursor_position = 0
 
 
-class DraftsScreen(Container):
+class DraftsScreen(Screen):
     """Screen for viewing and managing all drafts."""
 
     def compose(self) -> ComposeResult:
@@ -4705,9 +4724,9 @@ class Proj101App(App):
 
     BINDINGS = [
         # Basic app controls
-        Binding("q", "quit", "Quit", show=False),
+        # Binding("q", "quit", "Quit", show=False),
         Binding("i", "insert_mode", "Insert", show=True),
-        Binding("escape", "normal_mode", "Normal", show=False),
+        Binding("escape", "quit", "Quit", show=False),
         # Screen navigation
         Binding("0", "focus_main_content", "Main Content", show=False),
         Binding("1", "show_timeline", "Timeline", show=False),
@@ -4999,7 +5018,7 @@ class Proj101App(App):
             ),
             "messages": (
                 MessagesScreen,
-                "[0] Chat [6] Messages [1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:n] New Message [:q] Quit",
+                "[0] Chat [6] Messages [1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:m] New Message [:q] Quit",
             ),
             "profile": (
                 ProfileScreen,
@@ -5008,10 +5027,6 @@ class Proj101App(App):
             "settings": (
                 SettingsScreen,
                 "[1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
-            ),
-            "drafts": (
-                DraftsScreen,
-                "[1-5] Screens [p] Profile [j/k] Navigate [h/l] Select [Enter] Execute [:q] Quit",
             ),
             "user_profile": (
                 UserProfileViewScreen,
@@ -5142,7 +5157,7 @@ class Proj101App(App):
 
     def action_show_drafts(self) -> None:
         """Show the drafts screen."""
-        self.switch_screen("drafts")
+        self.push_screen(DraftsScreen())
 
     def action_view_user_profile(self, username: str) -> None:
         """View another user's profile."""
@@ -5187,8 +5202,6 @@ class Proj101App(App):
                 target_id = "#settings-panel"
             elif self.current_screen_name == "profile":
                 target_id = "#profile-panel"
-            elif self.current_screen_name == "drafts":
-                target_id = "#drafts-panel"
             elif self.current_screen_name == "user_profile":
                 target_id = "#user-profile-panel"
 
@@ -5324,8 +5337,6 @@ class Proj101App(App):
                             pass
                         if self.current_screen_name == "timeline":
                             self.switch_screen("timeline")
-                        elif self.current_screen_name == "drafts":
-                            self.switch_screen("drafts")
                     else:
                         # Dialog was closed without posting, refresh drafts in case it was saved
                         try:
@@ -5333,9 +5344,7 @@ class Proj101App(App):
                             self.post_message(DraftsUpdated())
                         except:
                             pass
-                        # Refresh drafts screen if we're on it
-                        if self.current_screen_name == "drafts":
-                            self.switch_screen("drafts")
+                        # Note: DraftsScreen is now a pushed screen, so it will be fresh when popped back to
 
                 self.push_screen(
                     NewPostDialog(
@@ -5388,10 +5397,34 @@ class Proj101App(App):
                 if command in screen_map:
                     self.switch_screen(screen_map[command])
                 elif command in ("q", "quit"):
-                    self.exit()
+                    # If NewPostDialog is active, dismiss it instead of quitting
+                    try:
+                        if isinstance(self.screen, NewPostDialog):
+                            self.screen.dismiss(False)
+                        else:
+                            self.exit()
+                    except Exception:
+                        self.exit()
+                elif command in ("b", "back"):
+                    # Dismiss modal screens (like NewPostDialog)
+                    try:
+                        if isinstance(self.screen, NewPostDialog):
+                            self.screen.dismiss(False)
+                        elif isinstance(self.screen, NewMessageDialog):
+                            self.screen.dismiss(False)
+                        elif isinstance(self.screen, ModalScreen):
+                            self.screen.dismiss(False)
+                    except Exception:
+                        pass
                 elif command.upper() == "P":
                     self.switch_screen("profile")
                 elif command == "n":
+                    # Open new post dialog
+                    try:
+                        self.action_new_post()
+                    except Exception:
+                        pass
+                elif command == "m":
                     # Open dialog to prompt for a username to message
                     try:
 
