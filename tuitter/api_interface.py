@@ -114,7 +114,10 @@ class Comment:
 
 @dataclass
 class UserSettings:
-    user_id: Optional[int] = None
+    # Match backend SettingsResponse schema
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    bio: Optional[str] = ""
     email_notifications: Optional[bool] = True
     show_online_status: Optional[bool] = True
     private_account: Optional[bool] = False
@@ -123,7 +126,6 @@ class UserSettings:
     google_connected: Optional[bool] = False
     discord_connected: Optional[bool] = False
     ascii_pic: Optional[str] = ""
-    updated_at: Optional[datetime] = None
 
 class APIInterface:
     def get_current_user(self) -> User: ...
@@ -138,6 +140,8 @@ class APIInterface:
     def mark_notification_read(self, notification_id: int) -> bool: ...
     def get_user_settings(self) -> UserSettings: ...
     def update_user_settings(self, settings: UserSettings) -> bool: ...
+    def get_user_posts(self, handle: str, limit: int = 50) -> List[Post]: ...
+    def get_user_comments(self, handle: str, limit: int = 100) -> List[Dict[str, Any]]: ...
     def create_post(self, content: str) -> bool: ...
     def like_post(self, post_id: int) -> bool: ...
     def unlike_post(self, post_id: int) -> bool: ...
@@ -146,6 +150,7 @@ class APIInterface:
     # comments
     def get_comments(self, post_id: int) -> List[Dict[str, Any]]: ...
     def add_comment(self, post_id: int, text: str) -> Dict[str, Any]: ...
+
 
 
 class RealAPI(APIInterface):
@@ -186,6 +191,9 @@ class RealAPI(APIInterface):
     def _post(self, path: str, json_payload: Dict[str, Any] | None = None, params: Dict[str, Any] | None = None) -> Any:
         return self._request("POST", path, params=params, json_payload=json_payload)
 
+    def _patch(self, path: str, json_payload: Dict[str, Any] | None = None, params: Dict[str, Any] | None = None) -> Any:
+        return self._request("PATCH", path, params=params, json_payload=json_payload)
+
     def _request(self, method: str, path: str, params: Dict[str, Any] | None = None, json_payload: Dict[str, Any] | None = None, retry: bool = True) -> Any:
         """Internal request helper that will attempt a single refresh+retry on 401.
 
@@ -199,10 +207,16 @@ class RealAPI(APIInterface):
         url = f"{self.base_url}/{path.lstrip('/')}"
 
         try:
-            if method.upper() == "GET":
+            m = method.upper()
+            if m == "GET":
                 resp = self.session.get(url, params=params, timeout=self.timeout)
-            else:
+            elif m == "POST":
                 resp = self.session.post(url, params=params, json=json_payload, timeout=self.timeout)
+            elif m == "PATCH":
+                resp = self.session.patch(url, params=params, json=json_payload, timeout=self.timeout)
+            else:
+                # Fallback to requests.request for other verbs
+                resp = self.session.request(m, url, params=params, json=json_payload, timeout=self.timeout)
 
             # If we received an auth-related response (400/401/403), try centralized restore once
             if resp.status_code in (400, 401, 403) and retry:
@@ -325,8 +339,31 @@ class RealAPI(APIInterface):
         return UserSettings(**filtered_data)
 
     def update_user_settings(self, settings: UserSettings) -> bool:
-        self._post("/settings", json_payload=settings.__dict__)
+        # Use PATCH for partial updates. Only send fields that are not None
+        try:
+            payload = {k: v for k, v in settings.__dict__.items() if v is not None}
+        except Exception:
+            payload = settings.__dict__
+        self._patch("/settings", json_payload=payload)
         return True
+
+    def get_user_posts(self, handle: str, limit: int = 50) -> List[Post]:
+        data = self._get("/posts", params={"handle": handle, "limit": limit})
+        # Expect list of post dicts
+        return [Post(**self._convert_post(p)) for p in data]
+
+    def get_user_comments(self, handle: str, limit: int = 100) -> List[Dict[str, Any]]:
+        data = self._get("/comments", params={"handle": handle, "limit": limit})
+        return data
+
+    def get_user_profile(self, handle: str) -> User:
+        """Fetch canonical user profile from backend.
+
+        Raises requests.HTTPError on non-2xx (404 will be raised by _request).
+        """
+        data = self._get(f"/users/{handle}")
+        # Backend returns fields compatible with User dataclass
+        return User(**data)
 
     def create_post(self, content: str) -> Post:
         # Check if content is JSON string containing attachments
@@ -631,7 +668,18 @@ class RealAPI(APIInterface):
             return False
 
 # Global api selection: prefer real backend when BACKEND_URL is set
-_BACKEND_URL = "https://voqbyhcnqe.execute-api.us-east-2.amazonaws.com"
+# Allow overriding backend URL via environment for local development
+_BACKEND_URL = os.getenv("BACKEND_URL") or "https://voqbyhcnqe.execute-api.us-east-2.amazonaws.com"
 
+# Initialize global `api` client. Prefer the saved username from auth_storage
+# (keyring) when available so requests that rely on `api.handle` use the
+# correct account rather than the literal default "yourname".
 if _BACKEND_URL:
-    api = RealAPI(base_url=_BACKEND_URL)
+    try:
+        # get_username was imported earlier from auth_storage when available
+        initial_handle = "None"
+        initial_handle = get_username()
+    except Exception:
+        pass
+
+    api = RealAPI(base_url=_BACKEND_URL, handle=initial_handle)

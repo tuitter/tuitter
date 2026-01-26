@@ -44,8 +44,10 @@ $bg-hover: #3B3F5C;
 $border-default: $dracula-current-line;
 $border-subtle: #4B4E6D;
 $border-hover: $dracula-comment;
-$border-green: #3C9A5F;
+$border-green: $dracula-green;
 $border-green-hover: $dracula-green;
+$border-red: $dracula-red;
+$border-orange: $dracula-orange;
 $border-drafts: $dracula-current-line;
 
 /* Text Colors */
@@ -68,6 +70,8 @@ $color-magenta: $dracula-pink;
 $color-green: $dracula-green;
 $color-yellow: $dracula-yellow;
 $color-lime: $dracula-green;
+$color-red: $dracula-red;
+$color-orange: $dracula-orange;
 
 /* Danger Colors (using Dracula Red) */
 $danger-border: $dracula-red;
@@ -85,7 +89,7 @@ $notif-unread-hover: $dracula-comment;
 $chat-sent: #18583a; /* deep muted green */
 $chat-sent-border: $border-green;
 /* Received/other messages: muted indigo/purple to contrast sent */
-$chat-received: #2b3150; /* muted indigo/slate */
+$chat-received: #3a2a4a; /* muted indigo/slate */
 $chat-received-border: $dracula-purple;
 /* New message emphasis - gentle highlight */
 $chat-new: #2f5d3b;
@@ -118,6 +122,139 @@ $follow-text: #88ff88;
 $follow-bg-hover: #3a5a3a;
 $follow-border: #5aaa5a;
 $follow-text-2: #aaffaa;
+
+/* ---------------- Profile & Settings Focus Styles ---------------- */
+/* These ensure the username/bio in Settings behave and highlight like
+   the Profile view. They intentionally provide both class and ID
+   selectors because the Python code may use either. */
+
+.profile-username-display,
+#settings-username {
+    color: $primary;
+    text-style: bold;
+    text-align: center;
+    width: 100%;
+    margin-bottom: 1;
+    padding: 1 2;
+    background: $bg-dark;
+}
+
+/* Profile avatar box and content */
+.profile-avatar-container {
+    width: 1fr;
+    height: auto;
+    min-height: 12;
+    padding: 1 2;
+    margin-bottom: 1;
+    background: $bg-dark;
+    border: solid $border-subtle;
+    align: left middle;
+    content-align: center middle;
+}
+
+/* Hover and focus on the avatar should highlight the container box
+   instead of highlighting the inner ascii text. This makes the
+   interaction feel like a card focus rather than text selection. */
+.profile-avatar-container:hover,
+.profile-avatar-container.vim-cursor,
+.profile-avatar-container.vim-row-focus {
+    background: $bg-highlight;
+    border: solid $border-hover;
+    color: $text-primary;
+}
+
+/* When the container is hovered/focused, ensure the inner ascii text
+   stays visually centered but does not receive separate hover styling
+   (prevent text-only highlighting). */
+.profile-avatar-container:hover .ascii-avatar,
+.profile-avatar-container.vim-cursor .ascii-avatar,
+.profile-avatar-container.vim-row-focus .ascii-avatar {
+    color: $text-primary;
+    background: transparent;
+}
+
+.profile-avatar-large,
+.ascii-avatar {
+    color: $text-content;
+    text-align: center;
+    padding: 0 1;
+}
+
+.profile-bio-container,
+.settings-bio-container {
+    width: 100%;
+    height: auto;
+    border: solid $border-subtle;
+    padding: 1 2;
+    background: $bg-dark;
+}
+
+.profile-bio-display,
+#settings-bio,
+.settings-bio {
+    color: $text-muted;
+    text-align: left;
+    width: 100%;
+}
+
+/* Settings-specific selectable base style */
+.settings-field-selectable {
+    color: $text-content;
+    padding: 1 2;
+    background: $bg-dark;
+    border: solid $border-subtle;
+}
+
+/* Focus variants applied when vim navigation is active */
+.profile-username-display.vim-cursor,
+.profile-username-display.vim-row-focus,
+#settings-username.vim-cursor,
+#settings-username.vim-row-focus,
+.settings-field-selectable.vim-cursor,
+.settings-field-selectable.vim-row-focus,
+.settings-bio.vim-cursor,
+.settings-bio.vim-row-focus,
+.profile-bio-container.vim-cursor,
+.profile-bio-container.vim-row-focus {
+    background: $bg-highlight;
+    color: $text-primary;
+    border: solid $border-hover;
+}
+
+/* Ensure the TextArea widget itself has an explicit box so its text
+   is visible even when there's no outer container. Keep styling
+   minimal to avoid changing the layout. */
+TextArea#settings-bio {
+    background: $bg-darker;
+    color: $text-primary;
+    padding: 1 2;
+    width: 100%;
+    height: 8;
+    border: solid $border-subtle;
+}
+
+/* Small helper so the settings username container can itself be highlighted */
+.settings-username-container.vim-cursor,
+.settings-username-container.vim-row-focus {
+    background: $bg-highlight;
+    border: solid $border-hover;
+}
+
+/* Stronger specificity: widget-type + class/id selectors so highlights
+   cannot be overridden by other rules. These target the Static/TextArea
+   widgets used for username and bio in Settings. */
+Static.settings-field-selectable.vim-cursor,
+Static.settings-field-selectable.vim-row-focus,
+Static#settings-username.vim-cursor,
+Static#settings-username.vim-row-focus,
+TextArea#settings-bio.vim-cursor,
+TextArea#settings-bio.vim-row-focus,
+Container.settings-bio-container.vim-cursor,
+Container.settings-bio-container.vim-row-focus {
+    background: $bg-highlight;
+    color: $text-primary;
+    border: solid $border-hover;
+}
 
 /* User-card hover */
 $user-card-username-hover: #2a3a4a;
@@ -249,9 +386,9 @@ DraftsScreen {
     background: $bg-dark;
     padding: 2 4;
     height: 100%;
-    border: round $color-lime;
+    border: round $color-orange;
     border-title-align: center;
-    border-title-color: $color-lime;
+    border-title-color: $color-orange;
     border-title-style: bold;
 }
 
@@ -262,11 +399,24 @@ DraftsScreen {
     margin: 0 0 2 0;
     padding: 2;
     background: $bg-dark;
-    border: round $border-green;
-    border-title-color: $color-green;
+    border: round $border-orange;
+    border-title-color: $color-orange;
     border-title-style: bold;
 }
 
+/* Ensure draft box children don't expand to fill remaining space.
+   This prevents a large gap between the border title and the content preview. */
+.draft-box {
+    layout: vertical;
+    align: left top;
+    min-height: 3;
+}
+
+.draft-header {
+    height: auto;
+    margin-bottom: 0;
+    content-align: left middle;
+}
 .draft-content-preview {
     color: $text-content;
     margin-bottom: 1;
@@ -300,12 +450,28 @@ DraftsScreen {
     min-width: 15;
 }
 
+/* Override Button primary variant when used on draft action buttons so that
+   the .draft-action-btn visual remains neutral (no bright filled primary).
+   This prevents open_btn.variant = "primary" from changing the background. */
+.draft-action-btn.-primary, .draft-action-btn.-primary:focus {
+    background: $bg-dark;
+    border: solid $color-cyan;
+    color: $text-primary;
+}
+.draft-action-btn.-primary:hover {
+    background: $bg-highlight;
+    border: heavy $accent-cyan;
+}
+
 .draft-action-btn, #cancel-delete {
     border: solid $color-cyan;
 }
 
-.draft-action-btn-delete, #confirm-delete {
-    border: solid $accent-red;
+/* Make the draft Delete action use the same neutral/cyan treatment as Open
+   (we don't want a saturated red here; keep red for destructive confirm dialogs).
+ */
+.draft-action-btn-delete {
+    border: solid $color-cyan;
 }
 
 .draft-action-btn:hover, #cancel-delete:hover {
@@ -314,9 +480,12 @@ DraftsScreen {
     color: $text-primary;
 }
 
-.draft-action-btn-delete:hover, #confirm-delete:hover {
-    background: $danger-bg-hover;
-    border: heavy $accent-red-hover;
+/* Draft delete button hover should match the neutral cyan highlight (not the destructive red)
+   to keep consistent affordance in the drafts list. The destructive confirm dialog still
+   uses red styling via #confirm-delete. */
+.draft-action-btn-delete:hover {
+    background: $bg-highlight;
+    border: heavy $accent-cyan;
     color: $text-primary;
 }
 
@@ -328,11 +497,33 @@ DraftsScreen {
     text-style: bold;
 }
 
-.draft-action-btn-delete.action-selected, #confirm-delete.selected {
-    background: $danger-bg-hover;
-    border: heavy $accent-red-hover;
+/* Use the same selected highlight for the delete action in the drafts list so both
+   buttons look consistent. Keep the confirm-delete dialog button separate. */
+.draft-action-btn-delete.action-selected {
+    background: $primary-dark;
+    border: heavy $primary;
     color: $text-primary;
     text-style: bold;
+}
+
+/* Ensure vim-cursor on a draft box forces the action buttons to reflect
+   the cursor highlight. This selector is intentionally very specific so
+   it overrides other button/variant rules and keeps keyboard navigation
+   visually consistent. */
+.draft-box.vim-cursor .draft-action-btn.action-selected,
+.draft-box.vim-cursor .draft-action-btn-delete.action-selected {
+    background: $primary-dark;
+    border: heavy $primary;
+    color: $text-primary;
+    text-style: bold;
+}
+
+/* Also ensure a vim-cursor draft box gives a subtle focused border to
+   both action buttons so the cursor presence is obvious even when the
+   selected action isn't focused by the widget-level focus state. */
+.draft-box.vim-cursor .draft-action-btn,
+.draft-box.vim-cursor .draft-action-btn-delete {
+    border: solid $border-hover;
 }
 
 /* Dialog button states */
@@ -343,6 +534,31 @@ DraftsScreen {
     min-width: 15;
     height: 5;
     padding: 1 2;
+}
+
+/* Save Changes button: keep neutral appearance until selected/focused */
+.save-changes-btn, Button.save-changes-btn {
+    background: $bg-darker;
+    color: $text-primary;
+    border: solid $border-subtle;
+    padding: 1 4;
+    margin: 1 2;
+    min-width: 12;
+    content-align: center middle;
+    text-align: center;
+    text-style: bold;
+}
+
+.save-changes-btn.-primary, Button.save-changes-btn.-primary, .save-changes-btn.-primary:focus {
+    background: $bg-darker;
+    border: solid $border-subtle;
+    color: $text-primary;
+}
+
+.save-changes-btn.action-selected, Button.save-changes-btn.action-selected, .save-changes-btn.vim-cursor {
+    background: $primary-dark;
+    border: heavy $primary;
+    color: $text-primary;
 }
 
 /* Cancel button styles */
@@ -396,10 +612,10 @@ DraftsScreen {
     padding: 1 1;
     margin: 0 0 1 0;
     background: $bg-dark;
-    border: round $chat-received;
-    border-title-color: $primary;
+    border: round $border-hover;
+    border-title-color: $border-hover;
     border-title-style: bold;
-    height: auto;
+    height: 6;
 }
 
 .draft-item:hover {
@@ -434,10 +650,9 @@ DraftsScreen {
 /* App Header */
 #app-header {
     dock: top;
-    height: 1;
+    height: 2;
     background: $bg-header;
     color: $text-primary;
-    padding: 0 2;
     content-align: left middle;
     text-style: bold;
 }
@@ -693,13 +908,16 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
 
 /* Sidebar */
 #sidebar {
-    width: 25;
-    background: $bg-lighter;
+    /* Increased width to give more room for command/help text */
+    width: 34;
+    background: $bg-dark;
     height: 100%;
     dock: left;
     layout: vertical;
     padding: 0 0 0 0;
-    overflow: auto;
+    margin-right: 2;
+    /* Sidebar should not scroll; individual panels manage their sizing */
+    overflow: hidden;
 }
 
 /* ========== VIBRANT SECTION BOXES ========== */
@@ -743,23 +961,27 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     margin: 0;
 }
 
-/* Drafts Section Box - Green */
+/* Drafts Section Box - Red */
 .drafts-box {
-    border: round $color-green;
+    border: round $color-orange;
     border-title-align: left;
-    border-title-color: $color-green;
+    border-title-color: $color-orange;
     border-title-style: bold;
     padding: 0 1;
     margin: 0 0 1 0;
-    height: auto;
+    /* Make the drafts box flexible so it grows/shrinks with the sidebar. */
+    height: 1fr;
+    overflow: hidden;
 }
 
 .no-drafts-text {
     color: $text-subtle;
     padding: 1;
-    text-align: center;
+    text-align: left;
     text-style: italic;
 }
+
+/* Summary shown when drafts cannot be displayed due to limited space */
 
 /* Modal dialog container styling - center dialogs on screen and provide consistent sizing */
 #dialog-container {
@@ -839,7 +1061,6 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
 }
 
 .upload-profile-picture:hover {
-    margin-top: 1;
     background: $muted-hover-bg;
     color: $muted-hover-color;
 }
@@ -852,6 +1073,81 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     margin-top: 1;
     background: $upload-profile-bg;
     color: $upload-profile-color;
+    padding: 0 2;
+    min-width: 12;
+}
+
+.delete-profile-picture {
+    margin-top: 1;
+    background: $danger-bg;
+    color: $danger-text;
+    padding: 0 2;
+    min-width: 12;
+    border: solid $danger-border;
+}
+
+/* Make Button widgets for upload/delete share exact sizing so they match visually */
+Button.upload-profile-picture,
+Button.delete-profile-picture {
+    /* Match Save Changes sizing to ensure visual parity and centering */
+    background: $bg-darker;
+    color: $text-primary;
+    border: solid $border-subtle;
+    padding: 1 4;
+    margin: 1 2;
+    min-width: 12;
+    content-align: center middle;
+    text-align: center;
+    text-style: bold;
+}
+
+/* Ensure delete button keeps danger colors while using the shared sizing */
+Button.delete-profile-picture.danger {
+    border: solid $danger-border;
+    color: $danger-text;
+    background: $danger-bg;
+}
+
+/* Explicit vim-cursor visuals for these two buttons so focus highlight is visible */
+Button.upload-profile-picture.vim-cursor,
+.upload-profile-picture.vim-cursor {
+    background: $primary-dark;
+    color: $text-primary;
+    border-left: $primary;
+    border-right: $primary;
+}
+
+Button.delete-profile-picture.vim-cursor,
+.delete-profile-picture.vim-cursor,
+Button.delete-profile-picture.vim-row-focus,
+.delete-profile-picture.vim-row-focus {
+    background: $danger-bg-hover;
+    color: $text-primary;
+    border-left: $accent-red-hover;
+    border-right: $accent-red-hover;
+}
+
+/* Hover states for mouse interactions */
+Button.save-changes-btn:hover, .save-changes-btn:hover,
+Button.save-changes-btn.-primary:hover {
+    background: $bg-highlight;
+    border: solid $border-hover;
+    color: $text-primary;
+}
+
+Button.upload-profile-picture:hover,
+.upload-profile-picture:hover {
+    background: $muted-hover-bg;
+    color: $muted-hover-color;
+    border: solid $border-hover;
+}
+
+Button.delete-profile-picture:hover,
+.delete-profile-picture:hover,
+Button.delete-profile-picture.danger:hover {
+    background: $danger-bg-hover;
+    color: $text-primary;
+    border: solid $accent-red-hover;
 }
 
 /* Timeline Feed Container */
@@ -883,6 +1179,13 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     border: solid $border-hover;
 }
 
+/* Ensure rendered post text and the post editor textarea share padding and color */
+.post-text, #post-textarea {
+    /* padding: <top> <right> <bottom> <left> */
+    padding: 1 0 1 3;
+    color: $text-content;
+}
+
 /* Scrollbar */
 #timeline-feed VerticalScroll {
     scrollbar-color: $scrollbar;
@@ -901,6 +1204,14 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     border-title-align: center;
     border-title-color: $color-lime;
     border-title-style: bold;
+}
+
+/* Comment Feed (embedded) - match timeline/discover padding and chrome */
+#comment-feed {
+    width: 1fr;
+    background: $bg-dark;
+    padding: 1 2;
+    height: 100%;
 }
 
 #search-results-container {
@@ -1119,11 +1430,11 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
 */
 
 .chat-message.sent {
-    background: #3a2a4a;
+    background: $chat-sent;
     color: $text-primary;
     align: right top;
     margin-left: 20;
-    border: solid $dracula-purple;
+    border: solid $chat-sent-border;
     text-align: right;
     margin-top: 1;
     margin-bottom: 1;
@@ -1133,19 +1444,16 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
    after the sender-* rules so per-sender backgrounds don't override
    the intended received palette. */
 .chat-message.received {
-    background: #2a3a2a;
+    background: $chat-received;
     color: $text-primary;
     align: left top;
     margin-right: 20;
-    border: solid $dracula-green;
-    text-align: left;
-    margin-top: 1;
     margin-bottom: 1;
+    border: solid $dracula-green;
 }
 
 /* Selected/keyboard focus state for messages (vim-mode selection) */
 .chat-message.vim-cursor {
-    /* Use a less abrasive selection color (dracula-themed) */
     background: $bg-focused;
     color: $text-primary;
     border: solid $border-hover;
@@ -1232,6 +1540,11 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     padding: 1 2;
     background: $bg-dark;
     border: solid $border-subtle;
+    /* Left-align the oauth status text for clearer reading */
+    text-align: left;
+    /* Align content to the left middle for better layout */
+    content-align: left middle;
+    width: 100%;
 }
 
 .checkbox-item {
@@ -1239,6 +1552,9 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     margin-left: 2;
     margin-bottom: 1;
     padding: 1 2;
+    width: 100%;
+    text-align: left;
+    content-align: left middle;
 }
 
 .settings-actions {
@@ -1316,14 +1632,14 @@ Input:focus {
     padding: 2 4;
     height: 100%;
     align: center top;
-    border: round $color-lime;
+    border: round $color-magenta;
     border-title-align: center;
-    border-title-color: $color-lime;
+    border-title-color: $color-magenta;
     border-title-style: bold;
 }
 
 .profile-center-container {
-    width: 70;
+    width: 100%;
     height: auto;
     align: center top;
     layout: vertical;
@@ -1388,6 +1704,64 @@ Input:focus {
     color: $text-muted;
     text-align: center;
     width: 100%;
+}
+
+/* Profile focus styles for vim navigation */
+.profile-avatar-large.vim-cursor,
+.profile-avatar-large.vim-row-focus {
+    background: $primary-dark;
+    color: $text-primary;
+    border: solid $border-hover;
+}
+
+.profile-username-display.vim-cursor,
+.profile-username-display.vim-row-focus {
+    background: $bg-highlight;
+    color: $text-primary;
+    border: solid $border-hover;
+}
+
+.profile-bio-display.vim-cursor,
+.profile-bio-display.vim-row-focus {
+    background: $bg-highlight;
+    color: $text-primary;
+    border: solid $border-subtle;
+}
+
+/* Ensure the entire Bio box highlights when focused */
+.profile-bio-container.vim-cursor,
+.profile-bio-container.vim-row-focus {
+    background: $bg-highlight;
+    color: $text-primary;
+    border: solid $border-hover;
+}
+
+/* Ensure post rows show a clear row-focus if selected */
+.post-item.vim-row-focus {
+    background: $bg-dark;
+    border: solid $border-hover;
+}
+
+/* Posts section header — accent left border + bold title */
+.profile-section-header {
+    width: 100%;
+    /* top right bottom left */
+    padding: 0 1 0 3;
+    margin-top: 1;
+    margin-bottom: 1;
+    color: $text-primary;
+    text-style: bold;
+    background: transparent;
+    /* subtle accent bar on the left */
+    border-left: heavy $primary;
+    content-align-horizontal: left;
+}
+
+.profile-section-header.vim-cursor,
+.profile-section-header.vim-row-focus {
+    background: $bg-highlight;
+    color: $text-primary;
+    border-left: heavy $primary-hover;
 }
 
 /* Profile Action Buttons */
@@ -1615,7 +1989,7 @@ Button {
 
 Button:hover {
     background: $bg-highlight;
-    border: heavy $accent-cyan;
+    border: solid $accent-cyan;
     color: $text-primary;
 }
 

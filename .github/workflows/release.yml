@@ -1,0 +1,67 @@
+on:
+  push:
+    tags:
+      - "v*" # Trigger on new version tags
+
+permissions:
+  contents: write
+
+jobs:
+  build-executables:
+    name: Build PyInstaller single-file binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+      - name: Install package
+        run: python -m pip install .
+      - name: Build single-file executable
+        run: pyinstaller --onefile --name tuitter tuitter/main.py
+      - id: prepare
+        name: Prepare artifact
+        shell: bash
+        run: |
+          mkdir -p release_artifacts
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            ext=".exe"
+            osname="windows-x86_64"
+            candidate="dist/tuitter.exe"
+          elif [ "${RUNNER_OS}" = "macOS" ]; then
+            ext=""
+            osname="macos-x86_64"
+            candidate="dist/tuitter"
+          else
+            ext=""
+            osname="linux-x86_64"
+            candidate="dist/tuitter"
+          fi
+          if [ -d "dist/tuitter" ] && [ -f "dist/tuitter/tuitter" ]; then
+            candidate="dist/tuitter/tuitter"
+          fi
+          if [ ! -f "$candidate" ]; then
+            echo "Built artifact not found: $candidate"
+            ls -la dist || true
+            exit 1
+          fi
+          dest="release_artifacts/tuitter-${osname}${ext}"
+          cp "$candidate" "$dest"
+          chmod +x "$dest" || true
+          echo "artifact=$dest" >> $GITHUB_OUTPUT
+          echo "asset_name=tuitter-${osname}${ext}" >> $GITHUB_OUTPUT
+      - name: Upload artifact to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ${{ steps.prepare.outputs.artifact }}
+          asset_name: ${{ steps.prepare.outputs.asset_name }}
+          asset_content_type: application/octet-stream
