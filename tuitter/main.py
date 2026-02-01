@@ -250,6 +250,8 @@ class MainUIScreen(Screen):
             yield MessagesScreen(id="screen-container")
         elif self.starting_view == "settings":
             yield SettingsScreen(id="screen-container")
+        elif self.starting_view == "drafts":
+            yield DraftsScreen(id="screen-container")
         else:
             yield TimelineScreen(id="screen-container")
 
@@ -1596,13 +1598,14 @@ class TopNav(Horizontal):
         }.get(screen_name, "tab-timeline")
 
     def on_mount(self) -> None:
-        # Ensure the active tab reflects current
+        # Ensure the active tab reflects current - use update_active which
+        # properly handles clearing tabs for drafts/profile screens
         try:
             tabs = self.query_one("#top-tabs", Tabs)
-            tabs.active = self._screen_to_tab_id(self.current)
             # Save reference for external callers
             self.tabs = tabs
-
+            # Use update_active to properly handle special screens like drafts
+            self.update_active(self.current)
         except Exception:
             pass
 
@@ -3609,55 +3612,26 @@ class ChatView(VerticalScroll):
     def watch_cursor_position(self, old_position: int, new_position: int) -> None:
         """Update the cursor when position changes"""
         messages = list(self.query(".chat-message"))
+        try:
+            inp = self.query_one("#message-input", Input)
+        except Exception:
+            inp = None
 
         # Remove cursor from old position
-        try:
-            if old_position < len(messages):
-                old_msg = messages[old_position]
-                if "vim-cursor" in old_msg.classes:
-                    old_msg.remove_class("vim-cursor")
-            elif old_position == len(messages):
-                # old position was the input - remove visual indicator
-                try:
-                    inp = self.query_one("#message-input", Input)
-                    inp.remove_class("vim-cursor")
-                    # Only blur if input is not actively in insert mode
-                    if inp.has_focus and not self.input_active:
-                        try:
-                            inp.blur()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        if old_position < len(messages):
+            old_msg = messages[old_position]
+            old_msg.remove_class("vim-cursor")
+        elif old_position == len(messages) and inp:
+            inp.remove_class("vim-cursor")
 
         # Add cursor to new position
-        try:
-            if new_position < len(messages):
-                new_msg = messages[new_position]
-                new_msg.add_class("vim-cursor")
-                # Scroll message into view
-                self.scroll_to_widget(new_msg)
-            elif new_position == len(messages):
-                # Select the input (visual indicator) but do NOT enter insert mode.
-                try:
-                    inp = self.query_one("#message-input", Input)
-                    inp.add_class("vim-cursor")
-                    # Ensure ChatView retains focus so vim keys are handled here
-                    try:
-                        self.focus()
-                    except Exception:
-                        pass
-                    # Ensure input area is visible at the bottom
-                    try:
-                        self.scroll_end(animate=False)
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        if new_position < len(messages):
+            new_msg = messages[new_position]
+            new_msg.add_class("vim-cursor")
+            self.scroll_to_widget(new_msg)
+        elif new_position == len(messages) and inp:
+            inp.add_class("vim-cursor")
+            self.scroll_to_widget(inp)
 
     def focus_last_message(self) -> None:
         """Focus and select the last message in the chat after messages have mounted."""
@@ -3756,9 +3730,12 @@ class ChatView(VerticalScroll):
         """Vim-style go to bottom"""
         if self.app.command_mode:
             return
-        # Move cursor to the input (position after the last message)
+        # Move cursor to the last message (not the input)
         messages = list(self.query(".chat-message"))
-        self.cursor_position = len(messages)
+        if messages:
+            self.cursor_position = len(messages) - 1
+        else:
+            self.cursor_position = 0
 
     def on_key(self, event) -> None:
         """Handle Escape from the input so we remain in vim-navigation state."""
@@ -3779,17 +3756,11 @@ class ChatView(VerticalScroll):
                     # Move cursor to input index so it's visually selected and navigatable
                     msgs = list(self.query(".chat-message"))
                     self.cursor_position = len(msgs)
-                    try:
-                        # Keep focus on ChatView so vim keys work
-                        self.focus()
-                    except Exception:
-                        pass
+                    # Keep focus on ChatView so vim keys work
+                    self.focus()
                     # Stop propagation so parent handlers don't also act
-                    try:
-                        event.prevent_default()
-                        event.stop()
-                    except Exception:
-                        pass
+                    event.prevent_default()
+                    event.stop()
                     return
             except Exception:
                 pass
@@ -5896,6 +5867,8 @@ class DraftsScreen(Container):
     """Screen for viewing and managing all drafts."""
 
     def compose(self) -> ComposeResult:
+        # Main content area with sidebar and drafts panel
+        # We are now a container inside MainUIScreen's #screen-container
         yield Sidebar(current="drafts", id="sidebar")
         yield DraftsPanel(id="drafts-panel")
 
@@ -6508,6 +6481,41 @@ class Proj101App(App):
 
                 # Focus the main content area after screen switch
                 self._focus_main_content_for_screen(screen_name)
+
+            def mount_new_screen():
+                # Old containers should already be removed, but double-check
+                for container in list(current_screen.query("#screen-container")):
+                    container.remove()
+
+                # Instantiate the screen without passing unknown kwargs to the
+                # constructor (some Screen classes don't accept arbitrary args).
+                try:
+                    screen_instance = ScreenClass(id="screen-container")
+                except Exception:
+                    # Fallback to calling with kwargs if constructor accepts them
+                    screen_instance = ScreenClass(id="screen-container", **kwargs)
+
+                # Set any provided kwargs as attributes on the screen instance
+                try:
+                    for k, v in kwargs.items():
+                        try:
+                            setattr(screen_instance, k, v)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+                # Mount the new screen
+                current_screen.mount(screen_instance)
+
+                # Schedule UI update after mount completes
+                try:
+                    self.call_after_refresh(update_ui)
+                except Exception:
+                    try:
+                        self.set_timer(0.02, update_ui)
+                    except Exception:
+                        update_ui()
 
             # Mount the new screen and ensure update_ui runs after mount completes
             try:

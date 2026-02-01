@@ -88,7 +88,7 @@ $notif-unread-hover: $dracula-comment;
 /* Sent messages (current user): deep, muted green/teal */
 $chat-sent: #18583a; /* deep muted green */
 $chat-sent-border: $border-green;
-/* Received/other messages: muted indigo/purple to contrast sent */
+/* Received/other messages: deep, muted purple/indigo to contrast sent */
 $chat-received: #3a2a4a; /* muted indigo/slate */
 $chat-received-border: $dracula-purple;
 /* New message emphasis - gentle highlight */
@@ -1485,6 +1485,11 @@ Button.delete-profile-picture.danger:hover {
     margin-top: 1;
 }
 
+.message-input.vim-cursor {
+    border: solid $border-hover;
+    background: $bg-highlight;
+}
+
 /* Search Input */
 .search-input {
     background: $bg-dark;
@@ -1846,14 +1851,7 @@ Input:focus {
     border: solid $chat-new-sent;
 }
 
-/* Mode indicator styling */
-.mode-indicator {
-    color: $text-dim;
-    margin-top: 1;
-    margin-bottom: 1;
-    text-align: center;
-    text-style: bold;
-}
+
 
 /* Chat input focus */
 #chat-message-input:focus {
