@@ -16,19 +16,31 @@ from .api_interface import api
 import sys
 import subprocess
 from pathlib import Path
-import tkinter as tk
-from tkinter import filedialog
 from PIL import Image
+
+# Tk is optional; used only for native file picker. If unavailable (e.g. Homebrew Python
+# without tk), the app still runs and we show a message when the user tries to pick a file.
+def _get_tk():
+    try:
+        import tkinter as _tk
+        from tkinter import filedialog as _fd
+        return _tk, _fd
+    except Exception:
+        return None, None
 from .ascii_video_widget import ASCIIVideoPlayer
 import json
 from typing import List, Dict
 from rich.text import Text
+import asyncio
 import logging
+import os
 import time
 import webbrowser
 import keyring
-import os
 import dotenv
+
+from textual import work
+from .ws_client import run_messaging_ws, _default_ws_url
 
 dotenv.load_dotenv()
 
@@ -115,6 +127,15 @@ class RepostUpdated(Message):
         self.reposted = reposted
         self.reposts = reposts
         self.origin = origin
+
+
+class NewMessageReceived(Message):
+    """Posted when a new message arrives via WebSocket for a conversation."""
+
+    def __init__(self, conversation_id: int, message) -> None:
+        super().__init__()
+        self.conversation_id = conversation_id
+        self.message = message
 
 
 # Drafts file path
@@ -2009,9 +2030,14 @@ class NewPostDialog(ModalScreen):
 
             self._show_status("Opening photo selector...")
             try:
-                root = tk.Tk()
+                _tk, _filedialog = _get_tk()
+                if _tk is None or _filedialog is None:
+                    self._show_status("Native file picker is unavailable on this system.")
+                    return
+
+                root = _tk.Tk()
                 root.withdraw()
-                file_path = filedialog.askopenfilename(
+                file_path = _filedialog.askopenfilename(
                     title="Select an image",
                     filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif *.bmp")],
                 )
@@ -3609,6 +3635,45 @@ class ChatView(VerticalScroll):
             # Handle error silently or show notification
             pass
 
+    def on_new_message_received(self, event: NewMessageReceived) -> None:
+        """Handle new message from WebSocket; add to this chat if it matches."""
+        if event.conversation_id != self.conversation_id or self.conversation_id <= 0:
+            return
+        msg = event.message
+        current_user = get_username() or api.handle or "yourname"
+        sender = getattr(msg, "sender", None) or getattr(msg, "sender_handle", None) or ""
+        if sender.lower() == current_user.lower():
+            return  # Already added in on_input_submitted
+        sender = getattr(msg, "sender", None) or getattr(msg, "sender_handle", None) or current_user
+        if not hasattr(self.app, "_sender_map_global"):
+            setattr(self.app, "_sender_map_global", {})
+            setattr(self.app, "_sender_map_next_idx", 0)
+        global_map = getattr(self.app, "_sender_map_global")
+        if sender.lower() not in global_map:
+            next_idx = getattr(self.app, "_sender_map_next_idx", 0)
+            global_map[sender.lower()] = next_idx % 5
+            setattr(self.app, "_sender_map_next_idx", next_idx + 1)
+            setattr(self.app, "_sender_map_global", global_map)
+        idx = global_map[sender.lower()]
+        sender_class = f"sender-{idx}"
+        classes = f"chat-message received {sender_class}"
+        try:
+            mode_indicator = self.query_one(".mode-indicator", Static)
+            self.mount(
+                ChatMessage(msg, current_user=current_user, classes=classes),
+                before=mode_indicator,
+            )
+            self.scroll_end(animate=False)
+        except Exception:
+            try:
+                self.mount(
+                    ChatMessage(msg, current_user=current_user, classes=classes),
+                    before=self.query_one("#message-input", Input),
+                )
+                self.scroll_end(animate=False)
+            except Exception:
+                pass
+
     def watch_cursor_position(self, old_position: int, new_position: int) -> None:
         """Update the cursor when position changes"""
         messages = list(self.query(".chat-message"))
@@ -3771,6 +3836,7 @@ class MessagesScreen(Container):
         super().__init__(**kwargs)
         self.dm_username = username
         self._switching = False
+        self._ws_subscribe_queue = asyncio.Queue()
 
     def compose(self) -> ComposeResult:
         yield Sidebar(current="messages", id="sidebar")
@@ -3790,12 +3856,41 @@ class MessagesScreen(Container):
         else:
             yield ChatView(id="chat")
 
+    @work(exclusive=False)
+    async def _run_ws_worker(self) -> None:
+        """WebSocket worker for real-time messaging. Uses BACKEND_WS_URL (separate from REST)."""
+        # Prefer dedicated WebSocket URL; fall back to REST base URL only when not set (e.g. local dev)
+        ws_url = os.getenv("BACKEND_WS_URL", "").strip() or _default_ws_url(getattr(api, "base_url", "") or "")
+        token = getattr(api, "token", None) or ""
+        if not ws_url or not token:
+            return
+
+        async def on_message(conv_id: int, payload: dict) -> None:
+            try:
+                msg = api._convert_message(payload)
+                event = NewMessageReceived(conv_id, msg)
+                try:
+                    chat_view = self.query_one("#chat", ChatView)
+                    chat_view.post_message(event)
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        await run_messaging_ws(ws_url, token, self._ws_subscribe_queue, on_message)
+
     def on_mount(self) -> None:
         """Add border to conversations list and update chat if DM"""
         conversations = self.query_one("#conversations", ConversationsList)
         conversations.border_title = "[6] Messages"
 
-        # If opening a DM, update the chat header
+        # Start WebSocket worker for real-time messages
+        try:
+            self._run_ws_worker()
+        except Exception:
+            pass
+
+        # If opening a DM, update the chat header and subscribe to WebSocket
         if self.dm_username:
             try:
                 chat = self.query_one("#chat", ChatView)
@@ -3803,9 +3898,13 @@ class MessagesScreen(Container):
                 header = chat.query_one(".panel-header", Static)
                 header.update(f"@{self.dm_username} | new conversation")
 
+                # Subscribe to this conversation for WebSocket updates
+                if chat.conversation_id and chat.conversation_id > 0:
+                    self._ws_subscribe_queue.put_nowait(chat.conversation_id)
+
                 # Focus the message input
                 self.call_after_refresh(self._focus_message_input)
-            except:
+            except Exception:
                 pass
         else:
             # No DM open: focus the conversations list and ensure first item selected
@@ -3836,6 +3935,13 @@ class MessagesScreen(Container):
         # Prevent concurrent switches
         if self._switching:
             return
+
+        # Subscribe to this conversation for real-time messages
+        if conversation_id and conversation_id > 0:
+            try:
+                self._ws_subscribe_queue.put_nowait(conversation_id)
+            except Exception:
+                pass
 
         try:
             # Remove empty state if it exists
@@ -3874,6 +3980,12 @@ class MessagesScreen(Container):
     def _mount_new_chat(self, conversation_id: int, username: str) -> None:
         """Mount a new chat view after old one has been removed"""
         try:
+            if conversation_id and conversation_id > 0:
+                try:
+                    self._ws_subscribe_queue.put_nowait(conversation_id)
+                except Exception:
+                    pass
+
             # Remove any existing chat views (should already be gone, but double check)
             for existing in self.query("ChatView"):
                 existing.remove()
@@ -4435,9 +4547,17 @@ class SettingsPanel(VerticalScroll):
         # Upload profile picture
         if btn_id == "upload-profile-picture":
             try:
-                root = tk.Tk()
+                _tk, _filedialog = _get_tk()
+                if _tk is None or _filedialog is None:
+                    try:
+                        self.app.notify("Native file picker is unavailable on this system.", severity="error")
+                    except Exception:
+                        pass
+                    return
+
+                root = _tk.Tk()
                 root.withdraw()
-                file_path = filedialog.askopenfilename(
+                file_path = _filedialog.askopenfilename(
                     title="Select an Image",
                     filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif *.bmp")],
                 )

@@ -221,13 +221,6 @@ $follow-text-2: #aaffaa;
     border: solid $border-hover;
 }
 
-/* Ensure TextArea (settings-bio) shows caret/text clearly */
-#settings-bio textarea,
-.settings-bio textarea {
-    color: $text-primary;
-    background: transparent;
-}
-
 /* Ensure the TextArea widget itself has an explicit box so its text
    is visible even when there's no outer container. Keep styling
    minimal to avoid changing the layout. */
@@ -729,7 +722,8 @@ TimelineScreen, DiscoverScreen, NotificationsScreen, MessagesScreen, SettingsScr
     height: 2fr;
 }
 
-/* Command Bar */
+/* Command Bar - Input for : commands */
+#command-input,
 #command-bar {
     dock: bottom;
     height: 1;
