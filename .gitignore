@@ -8,3 +8,7 @@ oauth_tokens.json
 tuitter/clean_auth.py
 dist
 tuitter.egg-info
+diff_main.txt
+diff_tcss.txt
+main_prev.py
+main_prev.tcss

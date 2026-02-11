@@ -1317,14 +1317,10 @@ class ChatMessage(Static):
     def __init__(self, message, current_user: str = "", **kwargs):
         super().__init__(**kwargs)
         self.message = message
-        is_sent = (message.sender or "").lower() == (current_user or "").lower()
-        # Add sent/received class plus a 'me' class for messages from the current userq
-        # Add sent/received class; avoid adding a separate 'me' class
-        # as 'sent' is sufficient and avoids duplicate styling rules.
-        self.add_class("sent" if is_sent else "received")
-        # Layout and alignment are handled via TCSS classes in `main.tcss`.
-        # Keep widget class markers but avoid programmatic style mutation
-        # so styling is centralized in the stylesheet.
+        # Only auto-detect sent/received if not already set by the caller
+        if "sent" not in self.classes and "received" not in self.classes:
+            is_sent = (message.sender or "").lower() == (current_user or "").lower()
+            self.add_class("sent" if is_sent else "received")
 
     def render(self) -> str:
         return f"{self.message.content}\n{format_time_ago(self.message.created_at)}"
@@ -3576,7 +3572,9 @@ class ChatView(VerticalScroll):
         for msg in messages:
             idx = _sender_idx(msg.sender)
             sender_class = f"sender-{idx}"
-            cls = f"chat-message {sender_class}"
+            is_sent = (msg.sender or "").lower() == (current_user or "").lower()
+            direction = "sent" if is_sent else "received"
+            cls = f"chat-message {direction} {sender_class}"
             yield ChatMessage(msg, current_user=current_user, classes=cls)
         yield Static("-- INSERT --", classes="mode-indicator")
         yield Input(
@@ -3598,6 +3596,12 @@ class ChatView(VerticalScroll):
 
         try:
             new_msg = api.send_message(self.conversation_id, text)
+            # Track message ID so the WebSocket echo is deduplicated
+            msg_id = getattr(new_msg, "id", None)
+            if msg_id:
+                if not hasattr(self, "_rendered_msg_ids"):
+                    self._rendered_msg_ids = set()
+                self._rendered_msg_ids.add(msg_id)
             # Determine sender class for the new message (use app-global map)
             current_user = get_username() or api.handle or ""
             sender = new_msg.sender or new_msg.sender_handle or current_user
@@ -3640,10 +3644,15 @@ class ChatView(VerticalScroll):
         if event.conversation_id != self.conversation_id or self.conversation_id <= 0:
             return
         msg = event.message
+        # Deduplicate by message ID — on_input_submitted already rendered this
+        msg_id = getattr(msg, "id", None)
+        if msg_id:
+            if not hasattr(self, "_rendered_msg_ids"):
+                self._rendered_msg_ids = set()
+            if msg_id in self._rendered_msg_ids:
+                return
+            self._rendered_msg_ids.add(msg_id)
         current_user = get_username() or api.handle or "yourname"
-        sender = getattr(msg, "sender", None) or getattr(msg, "sender_handle", None) or ""
-        if sender.lower() == current_user.lower():
-            return  # Already added in on_input_submitted
         sender = getattr(msg, "sender", None) or getattr(msg, "sender_handle", None) or current_user
         if not hasattr(self.app, "_sender_map_global"):
             setattr(self.app, "_sender_map_global", {})
