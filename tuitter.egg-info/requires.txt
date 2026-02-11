@@ -7,3 +7,8 @@ textual-imageview>=0.1.0
 python-dotenv>=1.0.0
 keyring>=24.0.0
 numpy>=1.24.0
+rich>=13.0.0
+SQLAlchemy>=2.0.0
+
+[:sys_platform == "win32"]
+pywin32>=305
