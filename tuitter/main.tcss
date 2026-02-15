@@ -88,7 +88,7 @@ $notif-unread-hover: $dracula-comment;
 /* Sent messages (current user): deep, muted green/teal */
 $chat-sent: #18583a; /* deep muted green */
 $chat-sent-border: $border-green;
-/* Received/other messages: muted indigo/purple to contrast sent */
+/* Received/other messages: deep, muted purple/indigo to contrast sent */
 $chat-received: #3a2a4a; /* muted indigo/slate */
 $chat-received-border: $dracula-purple;
 /* New message emphasis - gentle highlight */
@@ -722,7 +722,8 @@ TimelineScreen, DiscoverScreen, NotificationsScreen, MessagesScreen, SettingsScr
     height: 2fr;
 }
 
-/* Command Bar */
+/* Command Bar - Input for : commands */
+#command-input,
 #command-bar {
     dock: bottom;
     height: 1;
@@ -1341,32 +1342,20 @@ Button.delete-profile-picture.danger:hover {
 .chat-message.received {
     background: $chat-received;
     color: $text-primary;
-    /* Align content to the left side of the full-width message row */
     content-align: left middle;
     text-align: left;
-     /* position the bubble to the left: give a large right margin (in cells)
-         so the narrower bubble visually sits on the left side. Use integer
-         cell values (top right bottom left). */
-     margin: 0 20 2 0;
-    /* give more room on the right so the bubble reads as left-sided */
-    padding-left: 2;
-    padding-right: 18;
+    margin: 0 20 2 0;
+    padding: 0 2;
     border: solid $chat-received-border;
 }
 
 .chat-message.sent {
     background: $chat-sent;
     color: $text-primary;
-    /* Align content to the right side of the full-width message row */
     content-align: right middle;
     text-align: right;
-     /* position the bubble to the right: give a large left margin (in cells)
-         so the narrower bubble visually sits on the right side. Use integer
-         cell values (top right bottom left). */
-     margin: 0 0 2 20;
-    /* give more room on the left so the bubble reads as right-sided */
-    padding-right: 2;
-    padding-left: 18;
+    margin: 0 0 2 20;
+    padding: 0 2;
     border: solid $chat-sent-border;
 }
 
@@ -1473,6 +1462,11 @@ Button.delete-profile-picture.danger:hover {
     border: solid $color-cyan;
     padding: 0 1;
     margin-top: 1;
+}
+
+.message-input.vim-cursor {
+    border: solid $border-hover;
+    background: $bg-highlight;
 }
 
 /* Search Input */
@@ -1836,14 +1830,7 @@ Input:focus {
     border: solid $chat-new-sent;
 }
 
-/* Mode indicator styling */
-.mode-indicator {
-    color: $text-dim;
-    margin-top: 1;
-    margin-bottom: 1;
-    text-align: center;
-    text-style: bold;
-}
+
 
 /* Chat input focus */
 #chat-message-input:focus {

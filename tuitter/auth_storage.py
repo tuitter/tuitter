@@ -23,8 +23,11 @@ import base64
 from typing import Optional
 
 _DEBUG_FLAG_FILE = Path.home() / ".tuitter_tokens_debug.log"
-SERVICE_NAME = "tuitter"
-FALLBACK_TOKEN_FILE = Path.home() / ".tuitter_tokens.json"
+# Allow multiple instances with separate credentials via TUITTER_PROFILE env var.
+# E.g. TUITTER_PROFILE=alice isolates keyring keys and token file for a second user.
+_PROFILE = os.getenv("TUITTER_PROFILE", "").strip()
+SERVICE_NAME = f"tuitter-{_PROFILE}" if _PROFILE else "tuitter"
+FALLBACK_TOKEN_FILE = Path.home() / (f".tuitter_tokens_{_PROFILE}.json" if _PROFILE else ".tuitter_tokens.json")
 # Size of each chunk in bytes when splitting large values for keyring storage.
 # Keep this conservative to avoid per-credential limits on Windows Credential Manager.
 _CHUNK_SIZE = 1000

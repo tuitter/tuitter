@@ -16,19 +16,31 @@ from .api_interface import api
 import sys
 import subprocess
 from pathlib import Path
-import tkinter as tk
-from tkinter import filedialog
 from PIL import Image
+
+# Tk is optional; used only for native file picker. If unavailable (e.g. Homebrew Python
+# without tk), the app still runs and we show a message when the user tries to pick a file.
+def _get_tk():
+    try:
+        import tkinter as _tk
+        from tkinter import filedialog as _fd
+        return _tk, _fd
+    except Exception:
+        return None, None
 from .ascii_video_widget import ASCIIVideoPlayer
 import json
 from typing import List, Dict
 from rich.text import Text
+import asyncio
 import logging
+import os
 import time
 import webbrowser
 import keyring
-import os
 import dotenv
+
+from textual import work
+from .ws_client import run_messaging_ws, _default_ws_url
 
 dotenv.load_dotenv()
 
@@ -115,6 +127,15 @@ class RepostUpdated(Message):
         self.reposted = reposted
         self.reposts = reposts
         self.origin = origin
+
+
+class NewMessageReceived(Message):
+    """Posted when a new message arrives via WebSocket for a conversation."""
+
+    def __init__(self, conversation_id: int, message) -> None:
+        super().__init__()
+        self.conversation_id = conversation_id
+        self.message = message
 
 
 # Drafts file path
@@ -250,6 +271,8 @@ class MainUIScreen(Screen):
             yield MessagesScreen(id="screen-container")
         elif self.starting_view == "settings":
             yield SettingsScreen(id="screen-container")
+        elif self.starting_view == "drafts":
+            yield DraftsScreen(id="screen-container")
         else:
             yield TimelineScreen(id="screen-container")
 
@@ -1294,14 +1317,10 @@ class ChatMessage(Static):
     def __init__(self, message, current_user: str = "", **kwargs):
         super().__init__(**kwargs)
         self.message = message
-        is_sent = (message.sender or "").lower() == (current_user or "").lower()
-        # Add sent/received class plus a 'me' class for messages from the current userq
-        # Add sent/received class; avoid adding a separate 'me' class
-        # as 'sent' is sufficient and avoids duplicate styling rules.
-        self.add_class("sent" if is_sent else "received")
-        # Layout and alignment are handled via TCSS classes in `main.tcss`.
-        # Keep widget class markers but avoid programmatic style mutation
-        # so styling is centralized in the stylesheet.
+        # Only auto-detect sent/received if not already set by the caller
+        if "sent" not in self.classes and "received" not in self.classes:
+            is_sent = (message.sender or "").lower() == (current_user or "").lower()
+            self.add_class("sent" if is_sent else "received")
 
     def render(self) -> str:
         return f"{self.message.content}\n{format_time_ago(self.message.created_at)}"
@@ -1596,13 +1615,14 @@ class TopNav(Horizontal):
         }.get(screen_name, "tab-timeline")
 
     def on_mount(self) -> None:
-        # Ensure the active tab reflects current
+        # Ensure the active tab reflects current - use update_active which
+        # properly handles clearing tabs for drafts/profile screens
         try:
             tabs = self.query_one("#top-tabs", Tabs)
-            tabs.active = self._screen_to_tab_id(self.current)
             # Save reference for external callers
             self.tabs = tabs
-
+            # Use update_active to properly handle special screens like drafts
+            self.update_active(self.current)
         except Exception:
             pass
 
@@ -2006,9 +2026,14 @@ class NewPostDialog(ModalScreen):
 
             self._show_status("Opening photo selector...")
             try:
-                root = tk.Tk()
+                _tk, _filedialog = _get_tk()
+                if _tk is None or _filedialog is None:
+                    self._show_status("Native file picker is unavailable on this system.")
+                    return
+
+                root = _tk.Tk()
                 root.withdraw()
-                file_path = filedialog.askopenfilename(
+                file_path = _filedialog.askopenfilename(
                     title="Select an image",
                     filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif *.bmp")],
                 )
@@ -3576,7 +3601,9 @@ class ChatView(VerticalScroll):
         for msg in messages:
             idx = _sender_idx(msg.sender)
             sender_class = f"sender-{idx}"
-            cls = f"chat-message {sender_class}"
+            is_sent = (msg.sender or "").lower() == (current_user or "").lower()
+            direction = "sent" if is_sent else "received"
+            cls = f"chat-message {direction} {sender_class}"
             yield ChatMessage(msg, current_user=current_user, classes=cls)
         yield Static("-- INSERT --", classes="mode-indicator")
         yield Input(
@@ -3598,6 +3625,12 @@ class ChatView(VerticalScroll):
 
         try:
             new_msg = api.send_message(self.conversation_id, text)
+            # Track message ID so the WebSocket echo is deduplicated
+            msg_id = getattr(new_msg, "id", None)
+            if msg_id:
+                if not hasattr(self, "_rendered_msg_ids"):
+                    self._rendered_msg_ids = set()
+                self._rendered_msg_ids.add(msg_id)
             # Determine sender class for the new message (use app-global map)
             current_user = get_username() or api.handle or ""
             sender = new_msg.sender or new_msg.sender_handle or current_user
@@ -3635,23 +3668,88 @@ class ChatView(VerticalScroll):
             # Handle error silently or show notification
             pass
 
+    def on_new_message_received(self, event: NewMessageReceived) -> None:
+        """Handle new message from WebSocket; add to this chat if it matches."""
+        if event.conversation_id != self.conversation_id or self.conversation_id <= 0:
+            return
+        msg = event.message
+        # Deduplicate by message ID — on_input_submitted already rendered this
+        msg_id = getattr(msg, "id", None)
+        if msg_id:
+            if not hasattr(self, "_rendered_msg_ids"):
+                self._rendered_msg_ids = set()
+            if msg_id in self._rendered_msg_ids:
+                return
+            self._rendered_msg_ids.add(msg_id)
+        current_user = get_username() or api.handle or "yourname"
+        sender = getattr(msg, "sender", None) or getattr(msg, "sender_handle", None) or current_user
+        if not hasattr(self.app, "_sender_map_global"):
+            setattr(self.app, "_sender_map_global", {})
+            setattr(self.app, "_sender_map_next_idx", 0)
+        global_map = getattr(self.app, "_sender_map_global")
+        if sender.lower() not in global_map:
+            next_idx = getattr(self.app, "_sender_map_next_idx", 0)
+            global_map[sender.lower()] = next_idx % 5
+            setattr(self.app, "_sender_map_next_idx", next_idx + 1)
+            setattr(self.app, "_sender_map_global", global_map)
+        idx = global_map[sender.lower()]
+        sender_class = f"sender-{idx}"
+        classes = f"chat-message received {sender_class}"
+        try:
+            mode_indicator = self.query_one(".mode-indicator", Static)
+            self.mount(
+                ChatMessage(msg, current_user=current_user, classes=classes),
+                before=mode_indicator,
+            )
+            self.scroll_end(animate=False)
+        except Exception:
+            try:
+                self.mount(
+                    ChatMessage(msg, current_user=current_user, classes=classes),
+                    before=self.query_one("#message-input", Input),
+                )
+                self.scroll_end(animate=False)
+            except Exception:
+                pass
+
     def watch_cursor_position(self, old_position: int, new_position: int) -> None:
         """Update the cursor when position changes"""
         messages = list(self.query(".chat-message"))
+        try:
+            inp = self.query_one("#message-input", Input)
+        except Exception:
+            inp = None
 
         # Remove cursor from old position
-        messages = self.query(".chat-message")
-        if old_position < len(messages):
-            old_msg = messages[old_position]
-            if "vim-cursor" in old_msg.classes:
-                old_msg.remove_class("vim-cursor")
+        try:
+            if old_position < len(messages):
+                old_msg = messages[old_position]
+                if "vim-cursor" in old_msg.classes:
+                    old_msg.remove_class("vim-cursor")
+            elif old_position == len(messages):
+                # old position was the input - remove visual indicator
+                try:
+                    inp = self.query_one("#message-input", Input)
+                    inp.remove_class("vim-cursor")
+                    # Only blur if input is not actively in insert mode
+                    if inp.has_focus and not self.input_active:
+                        try:
+                            inp.blur()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
         # Add cursor to new position
         if new_position < len(messages):
             new_msg = messages[new_position]
             new_msg.add_class("vim-cursor")
-
             self.scroll_to_widget(new_msg)
+        elif new_position == len(messages) and inp:
+            inp.add_class("vim-cursor")
+            self.scroll_to_widget(inp)
 
     def focus_last_message(self) -> None:
         """Focus and select the last message in the chat after messages have mounted."""
@@ -3750,9 +3848,12 @@ class ChatView(VerticalScroll):
         """Vim-style go to bottom"""
         if self.app.command_mode:
             return
-        # Move cursor to the input (position after the last message)
+        # Move cursor to the last message (not the input)
         messages = list(self.query(".chat-message"))
-        self.cursor_position = len(messages)
+        if messages:
+            self.cursor_position = len(messages) - 1
+        else:
+            self.cursor_position = 0
 
     def on_key(self, event) -> None:
         """Handle Escape from the input so we remain in vim-navigation state."""
@@ -3773,17 +3874,11 @@ class ChatView(VerticalScroll):
                     # Move cursor to input index so it's visually selected and navigatable
                     msgs = list(self.query(".chat-message"))
                     self.cursor_position = len(msgs)
-                    try:
-                        # Keep focus on ChatView so vim keys work
-                        self.focus()
-                    except Exception:
-                        pass
+                    # Keep focus on ChatView so vim keys work
+                    self.focus()
                     # Stop propagation so parent handlers don't also act
-                    try:
-                        event.prevent_default()
-                        event.stop()
-                    except Exception:
-                        pass
+                    event.prevent_default()
+                    event.stop()
                     return
             except Exception:
                 pass
@@ -3794,6 +3889,7 @@ class MessagesScreen(Container):
         super().__init__(**kwargs)
         self.dm_username = username
         self._switching = False
+        self._ws_subscribe_queue = asyncio.Queue()
 
     def compose(self) -> ComposeResult:
         yield Sidebar(current="messages", id="sidebar")
@@ -3813,12 +3909,41 @@ class MessagesScreen(Container):
         else:
             yield ChatView(id="chat")
 
+    @work(exclusive=False)
+    async def _run_ws_worker(self) -> None:
+        """WebSocket worker for real-time messaging. Uses BACKEND_WS_URL (separate from REST)."""
+        # Prefer dedicated WebSocket URL; fall back to REST base URL only when not set (e.g. local dev)
+        ws_url = os.getenv("BACKEND_WS_URL", "").strip() or _default_ws_url(getattr(api, "base_url", "") or "")
+        token = getattr(api, "token", None) or ""
+        if not ws_url or not token:
+            return
+
+        async def on_message(conv_id: int, payload: dict) -> None:
+            try:
+                msg = api._convert_message(payload)
+                event = NewMessageReceived(conv_id, msg)
+                try:
+                    chat_view = self.query_one("#chat", ChatView)
+                    chat_view.post_message(event)
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        await run_messaging_ws(ws_url, token, self._ws_subscribe_queue, on_message)
+
     def on_mount(self) -> None:
         """Add border to conversations list and update chat if DM"""
         conversations = self.query_one("#conversations", ConversationsList)
         conversations.border_title = "[6] Messages"
 
-        # If opening a DM, update the chat header
+        # Start WebSocket worker for real-time messages
+        try:
+            self._run_ws_worker()
+        except Exception:
+            pass
+
+        # If opening a DM, update the chat header and subscribe to WebSocket
         if self.dm_username:
             try:
                 chat = self.query_one("#chat", ChatView)
@@ -3826,9 +3951,13 @@ class MessagesScreen(Container):
                 header = chat.query_one(".panel-header", Static)
                 header.update(f"@{self.dm_username} | new conversation")
 
+                # Subscribe to this conversation for WebSocket updates
+                if chat.conversation_id and chat.conversation_id > 0:
+                    self._ws_subscribe_queue.put_nowait(chat.conversation_id)
+
                 # Focus the message input
                 self.call_after_refresh(self._focus_message_input)
-            except:
+            except Exception:
                 pass
         else:
             # No DM open: focus the conversations list and ensure first item selected
@@ -3859,6 +3988,13 @@ class MessagesScreen(Container):
         # Prevent concurrent switches
         if self._switching:
             return
+
+        # Subscribe to this conversation for real-time messages
+        if conversation_id and conversation_id > 0:
+            try:
+                self._ws_subscribe_queue.put_nowait(conversation_id)
+            except Exception:
+                pass
 
         try:
             # Remove empty state if it exists
@@ -3897,6 +4033,12 @@ class MessagesScreen(Container):
     def _mount_new_chat(self, conversation_id: int, username: str) -> None:
         """Mount a new chat view after old one has been removed"""
         try:
+            if conversation_id and conversation_id > 0:
+                try:
+                    self._ws_subscribe_queue.put_nowait(conversation_id)
+                except Exception:
+                    pass
+
             # Remove any existing chat views (should already be gone, but double check)
             for existing in self.query("ChatView"):
                 existing.remove()
@@ -4472,9 +4614,17 @@ class SettingsPanel(VerticalScroll):
         # Upload profile picture
         if btn_id == "upload-profile-picture":
             try:
-                root = tk.Tk()
+                _tk, _filedialog = _get_tk()
+                if _tk is None or _filedialog is None:
+                    try:
+                        self.app.notify("Native file picker is unavailable on this system.", severity="error")
+                    except Exception:
+                        pass
+                    return
+
+                root = _tk.Tk()
                 root.withdraw()
-                file_path = filedialog.askopenfilename(
+                file_path = _filedialog.askopenfilename(
                     title="Select an Image",
                     filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif *.bmp")],
                 )
@@ -5926,6 +6076,8 @@ class DraftsScreen(Screen):
     """Screen for viewing and managing all drafts."""
 
     def compose(self) -> ComposeResult:
+        # Main content area with sidebar and drafts panel
+        # We are now a container inside MainUIScreen's #screen-container
         yield Sidebar(current="drafts", id="sidebar")
         yield DraftsPanel(id="drafts-panel")
 
@@ -6468,6 +6620,13 @@ class Proj101App(App):
             for container in list(current_screen.query("#screen-container")):
                 container.remove()
 
+            # Instantiate the screen
+            screen_instance = ScreenClass(**kwargs)
+
+            def mount_new_screen():
+                current_screen.mount(screen_instance)
+                update_ui()
+
             def update_ui():
                 try:
                     header = current_screen.query_one("#app-header", Static)
@@ -6504,9 +6663,9 @@ class Proj101App(App):
                         sidebar.update_active(screen_name)
                 except Exception:
                     pass
-                
+
                 self.current_screen_name = screen_name
-                
+
                 # Focus the main content area after screen switch
                 self._focus_main_content_for_screen(screen_name)
 
@@ -6514,7 +6673,7 @@ class Proj101App(App):
                 # Old containers should already be removed, but double-check
                 for container in list(current_screen.query("#screen-container")):
                     container.remove()
-                
+
                 # Instantiate the screen without passing unknown kwargs to the
                 # constructor (some Screen classes don't accept arbitrary args).
                 try:
@@ -6535,7 +6694,7 @@ class Proj101App(App):
 
                 # Mount the new screen
                 current_screen.mount(screen_instance)
-                
+
                 # Schedule UI update after mount completes
                 try:
                     self.call_after_refresh(update_ui)
