@@ -14,6 +14,9 @@ HERE = Path(SPECPATH)  # directory containing this .spec file
 textual_hidden = collect_submodules("textual")
 textual_datas = collect_data_files("textual")
 
+# charset_normalizer is a requests dependency that is loaded dynamically
+charset_hidden = collect_submodules("charset_normalizer")
+
 a = Analysis(
     [str(HERE / "_entry.py")],
     pathex=[str(HERE)],
@@ -24,7 +27,7 @@ a = Analysis(
         # Subway ASCII video frames
         (str(HERE / "tuitter" / "subway_ascii_frames"), "tuitter/subway_ascii_frames"),
     ] + textual_datas,
-    hiddenimports=textual_hidden + [
+    hiddenimports=textual_hidden + charset_hidden + [
         # Textual internals (belt-and-suspenders)
         "textual",
         "textual.app",
