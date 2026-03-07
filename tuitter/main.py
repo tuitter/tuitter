@@ -2172,10 +2172,8 @@ class NewPostDialog(ModalScreen):
                         pass
 
                     if not _uploaded:
-                        # Fall back to local braille conversion
-                        _term_w = self.app.size.width if self.app else 120
-                        _art_cols = max(30, _term_w - 35)
-                        ascii_art = image_to_braille_art(file_path, cols=_art_cols)
+                        # Fall back to local braille conversion at fixed width
+                        ascii_art = image_to_braille_art(file_path, cols=80)
                         self._attachments.append(("ascii_photo", ascii_art))
                         self._update_attachments_display()
                         self._show_status("✓ Photo converted to ASCII!")
