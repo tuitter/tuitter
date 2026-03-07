@@ -52,7 +52,7 @@ $downloadUrl = Get-DownloadUrl
 if ($downloadUrl) {
     Write-Green "Downloading $AssetName..."
     New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $Dest -UseBasicParsing
+    (New-Object System.Net.WebClient).DownloadFile($downloadUrl, $Dest)
     Write-Host ""
     Write-Green "tuitter installed to $Dest"
     if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $BinDir })) {
