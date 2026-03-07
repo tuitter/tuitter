@@ -34,11 +34,8 @@ case "$OS" in
       *)             ASSET="" ;;
     esac ;;
   Darwin*)
-    case "$ARCH" in
-      x86_64) ASSET="tuitter-macos-x86_64" ;;
-      arm64)  ASSET="tuitter-macos-arm64" ;;
-      *)      ASSET="" ;;
-    esac ;;
+    # arm64 binary runs on both Apple Silicon and Intel Macs (via Rosetta 2)
+    ASSET="tuitter-macos-arm64" ;;
   *) ASSET="" ;;
 esac
 
