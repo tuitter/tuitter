@@ -2305,3 +2305,7 @@ Button#confirm-delete:hover {
 .attachments-list {
     overflow-x: hidden;
 }
+
+.ascii-art {
+    overflow-x: hidden;
+}

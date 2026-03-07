@@ -1408,7 +1408,7 @@ class PostItem(Static):
         # Display ASCII art attachments
         if self.has_ascii_art:
             attachments = getattr(self.post, "attachments", [])
-            for attachment in attachments:
+            for i, attachment in enumerate(attachments):
                 att_type = attachment.get("type", "")
                 if att_type == "ascii_photo":
                     art_content = attachment.get("content", "")
@@ -1419,10 +1419,8 @@ class PostItem(Static):
                 elif att_type == "image_url":
                     url = attachment.get("url", "")
                     if url:
-                        art_content = _render_image_url(url, self.app)
-                        yield Static("\n", markup=False)
-                        yield Static(art_content, classes="ascii-art", markup=False)
-                        yield Static("\n", markup=False)
+                        # Empty placeholder; filled after layout in on_mount
+                        yield Static("⠀", classes="ascii-art art-placeholder", markup=False)
 
         # Video player if post has video
         if self.has_video and Path(self.post.video_path).exists():
@@ -1438,6 +1436,35 @@ class PostItem(Static):
             classes="post-stats",
             markup=False,
         )
+
+    def on_mount(self) -> None:
+        """After mount, render images at actual widget width."""
+        if self.has_ascii_art:
+            self.call_after_refresh(self._fill_image_placeholders)
+
+    def on_resize(self) -> None:
+        """Re-render images when the widget is resized (terminal zoom change)."""
+        if self.has_ascii_art:
+            self.call_after_refresh(self._fill_image_placeholders)
+
+    def _fill_image_placeholders(self) -> None:
+        """Render image_url attachments using the PostItem's actual column width."""
+        from rich.text import Text
+        # self.size.width is the PostItem's own laid-out column count
+        w = self.size.width
+        cols = max(20, w - 4) if w > 10 else 50
+        attachments = getattr(self.post, "attachments", [])
+        placeholders = list(self.query(".art-placeholder"))
+        idx = 0
+        for attachment in attachments:
+            if attachment.get("type") != "image_url":
+                continue
+            url = attachment.get("url", "")
+            if not url or idx >= len(placeholders):
+                continue
+            art = _render_image_url(url, self.app, cols=cols)
+            placeholders[idx].update(Text(art))
+            idx += 1
 
     def watch_has_class(self, has_class: bool) -> None:
         """Watch for class changes to handle cursor"""
@@ -1872,11 +1899,13 @@ def image_to_braille_art(file_path: str, cols: int = 80) -> str:
                     if px < px_w and py < px_h and pixels[px, py] >= threshold:
                         code |= (1 << BIT[dc][dr])
             line += chr(0x2800 + code)
-        lines.append(line)
+        # Strip trailing empty braille cells (U+2800 == \u2800)
+        # Rich treats them as whitespace and wraps lines at them
+        lines.append(line.rstrip('\u2800') or '\u2800')
     return "\n".join(lines)
 
 
-def _render_image_url(url: str, app=None) -> str:
+def _render_image_url(url: str, app=None, cols: int = None) -> str:
     """Download an image from a URL and render it as braille art at the viewer's terminal width.
 
     Result is cached in _image_url_cache keyed by (url, cols) so repeated
@@ -1884,10 +1913,10 @@ def _render_image_url(url: str, app=None) -> str:
     """
     import requests as _requests
 
-    _term_w = app.size.width if app else 120
-    # Timeline panel is roughly the right half; subtract sidebar (~28) + padding (~6)
-    _cols = max(30, _term_w - 35)
-    cache_key = (url, _cols)
+    if cols is None:
+        _term_w = app.size.width if app else 120
+        cols = min(80, max(30, int((_term_w - 40) * 0.90)))
+    cache_key = (url, cols)
 
     if cache_key in _image_url_cache:
         return _image_url_cache[cache_key]
@@ -1903,7 +1932,7 @@ def _render_image_url(url: str, app=None) -> str:
             tmp.write(img_bytes)
             tmp_path = tmp.name
         try:
-            art = image_to_braille_art(tmp_path, cols=_cols)
+            art = image_to_braille_art(tmp_path, cols=cols)
         finally:
             try:
                 _os.unlink(tmp_path)
