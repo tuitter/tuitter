@@ -1563,23 +1563,20 @@ class NotificationItem(Static):
 
     def render(self) -> str:
         t = format_time_ago(self.notification.timestamp)
-        icon = {
-            "mention": "📢",
-            "like": "❤️",
-            "repost": "Repost",
-            "follow": "👥",
-            "comment": "Comments",
-        }.get(self.notification.type, "🔵")
         n = self.notification
+        # Truncate content preview to keep items compact
+        preview = (n.content[:80] + "…") if n.content and len(n.content) > 80 else (n.content or "")
         if n.type == "mention":
-            return f"@{n.actor} mentioned you • {t}\n{n.content}"
+            return f"📢 @{n.actor} mentioned you  •  {t}\n   ↳ \"{preview}\""
         if n.type == "like":
-            return f"{icon} @{n.actor} liked your post • {t}\n{n.content}"
+            return f"❤️  @{n.actor} liked your post  •  {t}\n   ↳ \"{preview}\""
         if n.type == "repost":
-            return f"{icon} @{n.actor} reposted • {t}\n{n.content}"
+            return f"🔁 @{n.actor} reposted your post  •  {t}\n   ↳ \"{preview}\""
         if n.type == "follow":
-            return f"{icon} @{n.actor} started following you • {t}"
-        return f"{icon} @{n.actor} • {t}\n{n.content}"
+            return f"👥 @{n.actor} started following you  •  {t}"
+        if n.type == "comment":
+            return f"💬 @{n.actor} commented on your post  •  {t}\n   ↳ \"{preview}\""
+        return f"🔵 @{n.actor}  •  {t}\n   ↳ \"{preview}\""
 
 # ───────── Top Navbar ─────────
 
