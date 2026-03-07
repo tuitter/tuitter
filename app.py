@@ -71,13 +71,13 @@ class TuitterNatFreeStack(Stack):
             allocated_storage=20,
             max_allocated_storage=200,
             storage_encrypted=False,
-            backup_retention=Duration.days(1),
-            deletion_protection=False,
+            backup_retention=Duration.days(7),
+            deletion_protection=True,
             credentials=rds.Credentials.from_password(
                 "postgres", cdk.SecretValue.plain_text("postgres")
             ),
-            removal_policy=RemovalPolicy.DESTROY,
-            delete_automated_backups=True,
+            removal_policy=RemovalPolicy.RETAIN,
+            delete_automated_backups=False,
         )
 
         # --------------------------
