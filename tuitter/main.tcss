@@ -2052,14 +2052,35 @@ NewPostDialog > #vim-hints {
     padding: 0 1;
 }
 
-#dialog-container {
-    width: 90;
-    height: 85%;
+#delete-post-container {
+    width: 70;
+    height: auto;
     background: $bg-dark;
     border: round $color-cyan;
-    border-title-align: center;
-    padding: 2;
+    padding: 2 3;
+    align: center middle;
 }
+
+#delete-post-title {
+    color: $color-cyan;
+    text-style: bold;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#delete-post-buttons {
+    layout: horizontal;
+    height: auto;
+    width: 100%;
+    align: center middle;
+    margin-top: 1;
+}
+
+#delete-post-buttons Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
 
 #dialog-scroll {
     width: 100%;
