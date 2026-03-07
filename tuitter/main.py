@@ -29,6 +29,7 @@ def _get_tk():
         return None, None
 from .ascii_video_widget import ASCIIVideoPlayer
 import json
+import io
 from typing import List, Dict
 from rich.text import Text
 import asyncio
@@ -38,6 +39,10 @@ import time
 import webbrowser
 import keyring
 import dotenv
+
+# Cache: maps (url, cols) -> rendered braille art string
+# Avoids re-downloading + re-rendering the same image on every timeline refresh.
+_image_url_cache: Dict[tuple, str] = {}
 
 from textual import work
 from .ws_client import run_messaging_ws, _default_ws_url
@@ -1376,7 +1381,7 @@ class PostItem(Static):
         attachments = getattr(post, "attachments", None)
         if isinstance(attachments, list):
             self.has_ascii_art = any(
-                att.get("type") == "ascii_photo" for att in attachments
+                att.get("type") in ("ascii_photo", "image_url") for att in attachments
             )
         else:
             self.has_ascii_art = False
@@ -1404,17 +1409,19 @@ class PostItem(Static):
         if self.has_ascii_art:
             attachments = getattr(self.post, "attachments", [])
             for attachment in attachments:
-                if attachment.get("type") == "ascii_photo":
+                att_type = attachment.get("type", "")
+                if att_type == "ascii_photo":
                     art_content = attachment.get("content", "")
-                    if art_content:  # Only yield if we have content
-                        # Add spacing before ASCII art
+                    if art_content:
                         yield Static("\n", markup=False)
-                        yield Static(
-                            art_content,
-                            classes="ascii-art",
-                            markup=False,
-                        )
-                        # Add spacing after ASCII art
+                        yield Static(art_content, classes="ascii-art", markup=False)
+                        yield Static("\n", markup=False)
+                elif att_type == "image_url":
+                    url = attachment.get("url", "")
+                    if url:
+                        art_content = _render_image_url(url, self.app)
+                        yield Static("\n", markup=False)
+                        yield Static(art_content, classes="ascii-art", markup=False)
                         yield Static("\n", markup=False)
 
         # Video player if post has video
@@ -1869,6 +1876,45 @@ def image_to_braille_art(file_path: str, cols: int = 80) -> str:
     return "\n".join(lines)
 
 
+def _render_image_url(url: str, app=None) -> str:
+    """Download an image from a URL and render it as braille art at the viewer's terminal width.
+
+    Result is cached in _image_url_cache keyed by (url, cols) so repeated
+    renders of the same post don't re-download.
+    """
+    import requests as _requests
+
+    _term_w = app.size.width if app else 120
+    # Timeline panel is roughly the right half; subtract sidebar (~28) + padding (~6)
+    _cols = max(30, _term_w - 35)
+    cache_key = (url, _cols)
+
+    if cache_key in _image_url_cache:
+        return _image_url_cache[cache_key]
+
+    try:
+        resp = _requests.get(url, timeout=15)
+        resp.raise_for_status()
+        img_bytes = resp.content
+        # Write to a temp file that image_to_braille_art can open
+        import tempfile, os as _os
+        suffix = "." + (url.rsplit(".", 1)[-1].split("?")[0] or "jpg")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(img_bytes)
+            tmp_path = tmp.name
+        try:
+            art = image_to_braille_art(tmp_path, cols=_cols)
+        finally:
+            try:
+                _os.unlink(tmp_path)
+            except Exception:
+                pass
+        _image_url_cache[cache_key] = art
+        return art
+    except Exception as e:
+        return f"[image unavailable: {e}]"
+
+
 class NewPostDialog(ModalScreen):
     """Modal dialog for creating a new post."""
 
@@ -2107,21 +2153,33 @@ class NewPostDialog(ModalScreen):
                     return
 
                 try:
-                    # Use terminal width minus sidebar (~28 cols) and borders (~6 cols)
-                    _term_w = self.app.size.width if self.app else 120
-                    _art_cols = max(30, _term_w - 35)
-                    ascii_art = image_to_braille_art(file_path, cols=_art_cols)
-
                     # Remove any existing photo attachment so we only keep one image
                     try:
-                        self._attachments = [a for a in getattr(self, "_attachments", []) if not (a and a[0] in ("photo", "ascii_photo"))]
+                        self._attachments = [a for a in getattr(self, "_attachments", []) if not (a and a[0] in ("photo", "ascii_photo", "image_url"))]
                     except Exception:
                         self._attachments = []
 
-                    # Store ASCII version instead of original photo
-                    self._attachments.append(("ascii_photo", ascii_art))
-                    self._update_attachments_display()
-                    self._show_status("✓ Photo converted to ASCII!")
+                    # Try to upload to R2 first for viewer-side adaptive rendering
+                    _uploaded = False
+                    try:
+                        self._show_status("Uploading image...")
+                        _url = api.upload_image(file_path)
+                        self._attachments.append(("image_url", _url))
+                        self._update_attachments_display()
+                        self._show_status("✓ Photo uploaded!")
+                        _uploaded = True
+                    except Exception as _upload_err:
+                        pass
+
+                    if not _uploaded:
+                        # Fall back to local braille conversion
+                        _term_w = self.app.size.width if self.app else 120
+                        _art_cols = max(30, _term_w - 35)
+                        ascii_art = image_to_braille_art(file_path, cols=_art_cols)
+                        self._attachments.append(("ascii_photo", ascii_art))
+                        self._update_attachments_display()
+                        self._show_status("✓ Photo converted to ASCII!")
+
                 except Exception as e:
                     self._show_status(f"Warning: Error converting image: {str(e)}", error=True)
             except Exception as e:
@@ -2152,6 +2210,8 @@ class NewPostDialog(ModalScreen):
         for t, p in self._attachments:
             if t == "ascii_photo":
                 attachments.append({"type": "ascii_photo", "content": p})
+            elif t == "image_url":
+                attachments.append({"type": "image_url", "url": p})
             else:
                 attachments.append({"type": t, "path": p})
 

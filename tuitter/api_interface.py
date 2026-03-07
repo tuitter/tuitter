@@ -428,6 +428,22 @@ class RealAPI(APIInterface):
             data = self._post("/posts", json_payload={"content": content})
         return Post(**self._convert_post(data))
 
+    def upload_image(self, file_path: str) -> str:
+        """Upload an image file to R2 via the backend and return the public URL."""
+        import mimetypes
+        url = f"{self.base_url}/upload/image"
+        params = {"handle": self.handle}
+        content_type = mimetypes.guess_type(file_path)[0] or "image/jpeg"
+        with open(file_path, "rb") as f:
+            resp = self.session.post(
+                url,
+                params=params,
+                files={"file": (file_path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1], f, content_type)},
+                timeout=60,
+            )
+        resp.raise_for_status()
+        return resp.json()["url"]
+
     def like_post(self, post_id: int) -> bool:
         self._post(f"/posts/{post_id}/like")
         return True
