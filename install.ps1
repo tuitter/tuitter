@@ -68,7 +68,7 @@ if ($downloadUrl) {
         Write-Host ""
         Write-Host "Or download URL:" -ForegroundColor White
         Write-Host "  $downloadUrl" -ForegroundColor White
-        exit 1
+        return
     }
     Write-Host ""
     Write-Green "tuitter installed to $Dest"
@@ -78,11 +78,11 @@ if ($downloadUrl) {
     }
     Write-Host ""
     Write-Bold "Done! Open a new terminal and run: tuitter"
-    exit 0
+    return
 }
 
 Write-Red "No prebuilt binary found."
 Write-Host ""
 Write-Host "Download it manually from:"
 Write-Host "  https://github.com/$Repo/releases"
-exit 1
+return
