@@ -1367,13 +1367,13 @@ class PostItem(Static):
         """Compose compact post."""
         time_ago = format_time_ago(self.post.timestamp)
         like_symbol = "❤️" if self.liked_by_user else "🤍"
-        repost_symbol = "Repost"
+        # repost_symbol = "Repost"  # HIDDEN: reposts feature
 
-        # Repost banner if this is a reposted post by you (either client-injected or backend-marked)
-        if getattr(self, "reposted_by_you", False) or getattr(
-            self.post, "reposted_by_user", False
-        ):
-            yield Static("Reposted by you", classes="repost-banner", markup=False)
+        # # Repost banner — HIDDEN: reposts feature
+        # if getattr(self, "reposted_by_you", False) or getattr(
+        #     self.post, "reposted_by_user", False
+        # ):
+        #     yield Static("Reposted by you", classes="repost-banner", markup=False)
 
         # Post header and reactive stats
         yield Static(
@@ -1409,7 +1409,7 @@ class PostItem(Static):
 
         # Post stats - use reactive fields so updates are instant
         yield Static(
-            f"{like_symbol} {self.like_count}  {repost_symbol} {self.repost_count}  Comments {self.comment_count}",
+            f"{like_symbol} {self.like_count}  Comments {self.comment_count}",  # repost hidden
             classes="post-stats",
             markup=False,
         )
@@ -1430,9 +1430,9 @@ class PostItem(Static):
         try:
             stats_widget = self.query_one(".post-stats", Static)
             like_symbol = "❤️" if self.liked_by_user else "🤍"
-            repost_symbol = "Reposts"
+            # repost_symbol = "Reposts"  # HIDDEN: reposts feature
             stats_widget.update(
-                f"{like_symbol}  {self.like_count} Likes     🔁  {self.repost_count} {repost_symbol}     💬  {self.comment_count} Comments"
+                f"{like_symbol}  {self.like_count} Likes     💬  {self.comment_count} Comments"  # repost hidden
             )
         except Exception:
             # If not found, force a refresh as fallback
@@ -1736,7 +1736,7 @@ class Sidebar(VerticalScroll):
             elif self.current_screen in ("timeline", "discover"):
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
-                yield CommandItem(":rp", "repost", classes="command-item")
+                # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
                 yield CommandItem("[Enter]", "comments", classes="command-item")
             elif self.current_screen == "notifications":
                 yield CommandItem(":m", "mark read", classes="command-item")
@@ -1745,7 +1745,7 @@ class Sidebar(VerticalScroll):
                 yield CommandItem(":f", "follow", classes="command-item")
                 # Allow liking/reposting directly from profile posts
                 yield CommandItem(":l", "like", classes="command-item")
-                yield CommandItem(":rp", "repost", classes="command-item")
+                # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
                 yield CommandItem("[Enter]", "comments", classes="command-item")
             elif self.current_screen == "settings":
                 yield CommandItem(":w", "save", classes="command-item")
@@ -5908,7 +5908,7 @@ class DraftsPanel(VerticalScroll):
         if self.app.command_mode:
             return
         try:
-            self.app.pop_screen()
+            self.app.switch_screen("timeline")
         except Exception:
             pass
 
@@ -6072,12 +6072,10 @@ class DraftsPanel(VerticalScroll):
             pass
 
 
-class DraftsScreen(Screen):
+class DraftsScreen(Container):
     """Screen for viewing and managing all drafts."""
 
     def compose(self) -> ComposeResult:
-        # Main content area with sidebar and drafts panel
-        # We are now a container inside MainUIScreen's #screen-container
         yield Sidebar(current="drafts", id="sidebar")
         yield DraftsPanel(id="drafts-panel")
 
@@ -6796,7 +6794,7 @@ class Proj101App(App):
 
     def action_show_drafts(self) -> None:
         """Show the drafts screen."""
-        self.push_screen(DraftsScreen())
+        self.switch_screen("drafts")
 
     def action_view_user_profile(self, username: str) -> None:
         """View another user's profile."""
@@ -7958,8 +7956,7 @@ class Proj101App(App):
                                         logging.exception("Error toggling like")
                         except Exception:
                             pass
-                elif command == "rp":
-                    # Repost the currently focused post in timeline or discover
+                elif command == "rp" and False:  # HIDDEN: reposts feature disabled
                     if self.current_screen_name == "timeline":
                         try:
                             timeline_feed = self.query_one("#timeline-feed")
