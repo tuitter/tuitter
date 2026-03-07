@@ -15,18 +15,20 @@ textual_hidden = collect_submodules("textual")
 textual_datas = collect_data_files("textual")
 
 # charset_normalizer is a requests dependency that is loaded dynamically
-charset_hidden = collect_submodules("charset_normalizer")
+# collect_all is needed to also grab the C extension .pyd binaries
+from PyInstaller.utils.hooks import collect_all
+charset_datas, charset_binaries, charset_hidden = collect_all("charset_normalizer")
 
 a = Analysis(
     [str(HERE / "_entry.py")],
     pathex=[str(HERE)],
-    binaries=[],
+    binaries=charset_binaries,
     datas=[
         # Textual CSS theme
         (str(HERE / "tuitter" / "main.tcss"), "tuitter"),
         # Subway ASCII video frames
         (str(HERE / "tuitter" / "subway_ascii_frames"), "tuitter/subway_ascii_frames"),
-    ] + textual_datas,
+    ] + textual_datas + charset_datas,
     hiddenimports=textual_hidden + charset_hidden + [
         # Textual internals (belt-and-suspenders)
         "textual",
