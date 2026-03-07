@@ -194,6 +194,7 @@
       "GITHUB_WEBHOOK_SECRET": "SET_ME_LATER"
      }
     },
+    "FunctionName": "tuitter-api",
     "MemorySize": 1024,
     "PackageType": "Image",
     "Role": {

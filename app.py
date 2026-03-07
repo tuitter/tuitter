@@ -98,6 +98,7 @@ class TuitterNatFreeStack(Stack):
         fn = _lambda.DockerImageFunction(
             self,
             "TuitterApiLambda",
+            function_name="tuitter-api",
             code=_lambda.DockerImageCode.from_ecr(
                 repository=repo,
                 tag=ECR_TAG,
