@@ -38,10 +38,11 @@ try {
 
         # Verify it's on PATH
         if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $BinDir })) {
+            $addPath = '[Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";' + $BinDir + '", "User")'
             Write-Yellow ""
             Write-Yellow "  $BinDir may not be on your PATH."
-            Write-Yellow "  If 'tuitter' is not found after a new terminal, add it:"
-            Write-Yellow "  [Environment]::SetEnvironmentVariable('PATH', `$env:PATH + ';$BinDir', 'User')"
+            Write-Yellow "  Run this in a new PowerShell window to add it permanently:"
+            Write-Yellow "    $addPath"
         }
 
         Write-Host ""
