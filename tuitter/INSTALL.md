@@ -3,8 +3,8 @@
 ## Quick Setup (One Command)
 
 ```bash
-git clone --recurse-submodules https://github.com/DH-GM/proj101.git
-cd proj101
+git clone https://github.com/tuitter/tuitter.git
+cd tuitter
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -13,11 +13,11 @@ python3 main.py
 
 ## Step-by-Step Setup
 
-### 1. Clone the repository with submodules
+### 1. Clone the repository
 
 ```bash
-git clone --recurse-submodules https://github.com/DH-GM/proj101.git
-cd proj101
+git clone https://github.com/tuitter/tuitter.git
+cd tuitter
 ```
 
 **Important:** The `--recurse-submodules` flag automatically clones the asciifer submodule!
@@ -44,11 +44,13 @@ pip install -r requirements.txt
 ### 5. Run the app
 
 **Terminal mode:**
+
 ```bash
 python3 main.py
 ```
 
 **Web mode:**
+
 ```bash
 textual-web --config serve.toml
 ```
@@ -104,4 +106,3 @@ git commit -m "Update asciifer submodule"
 ---
 
 Need help? Open an issue on GitHub!
-

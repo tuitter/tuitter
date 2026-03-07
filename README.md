@@ -2,63 +2,83 @@
 
 Terminal social client.
 
-Tuitter is a keyboard-first, terminal-native social client built for people who prefer speed, privacy, and staying in the flow of their terminal workflows. Whether you're a developer, sysadmin, designer, or just love efficient tools, Tuitter gives you a lightweight way to follow timelines, compose posts, and share expressive ASCII art without leaving your shell.
+Tuitter is a keyboard-first, terminal-native social client built for people who prefer speed, privacy, and staying in the flow of their terminal workflows.
 
 ## Installation
 
-This project supports two recommended install flows: (A) pipx / pip install, and (B) prebuilt native executables distributed via Releases. Prefer pinned release artifacts and checksum verification.
+Requires **Python 3.10+**. The recommended way is `pipx`, which installs tuitter in its own isolated virtual environment and puts the `tuitter` command on your PATH.
 
-### Prerequisites
-
-- Python 3.8+ (required for `pip`/`pipx` installs)
-- Optional system tools: `ffmpeg` (video → ASCII), and OS packages providing `tkinter` for file dialogs.
-
-### A) Install via pipx / pip (recommended for developers)
-
-Install from PyPI (keeps CLI managed and isolated):
+### macOS / Linux / WSL — one-liner
 
 ```bash
-pipx install tuitter
+curl -fsSL https://raw.githubusercontent.com/tuitter/tuitter/main/install.sh | bash
 ```
 
-Or with pip into a venv:
+Or manually with pipx:
 
 ```bash
-python -m venv .venv
-.venv/bin/pip install tuitter
+pipx install "git+https://github.com/tuitter/tuitter.git"
 ```
 
-You can also install a specific wheel from Releases:
+### Windows — PowerShell one-liner
+
+```powershell
+irm https://raw.githubusercontent.com/tuitter/tuitter/main/install.ps1 | iex
+```
+
+> If you get a security error run this first:
+> `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
+
+Or manually with pipx:
+
+```powershell
+pipx install "git+https://github.com/tuitter/tuitter.git"
+```
+
+### Don't have pipx?
+
+Install it first:
 
 ```bash
-pipx install https://github.com/tuitter/tuitter/releases/download/v0.1.0/tuitter-<os>-<arch>.whl
+# macOS / Linux
+python3 -m pip install --user pipx && python3 -m pipx ensurepath
+# restart your terminal, then run the install command above
 ```
 
-### B) Prebuilt native executables (single-file binaries)
+```powershell
+# Windows
+python -m pip install --user pipx; python -m pipx ensurepath
+# restart your terminal, then run the install command above
+```
 
-We publish per-platform single-file executables built with PyInstaller to GitHub Releases. Choose the binary matching your OS/arch and download it from the Releases page.
-
-Example (Linux x86_64):
+### Alternative: plain pip into a venv
 
 ```bash
-curl -LO https://github.com/tuitter/tuitter/releases/download/v0.1.0/tuitter-linux-x86_64
-chmod +x tuitter-linux-x86_64
-sudo mv tuitter-linux-x86_64 /usr/local/bin/tuitter
+python3 -m venv tuitter-env
+source tuitter-env/bin/activate        # Windows: tuitter-env\Scripts\activate
+pip install "git+https://github.com/tuitter/tuitter.git"
+tuitter
 ```
 
-Example (Windows): download `tuitter-windows-x86_64.exe` and place it on your PATH, or run directly.
+### Optional: video-to-ASCII support
 
-Verify checksums when provided (recommended):
+The base install is lightweight (~50 MB). If you also want to convert video files to ASCII art, install the `video` extra (adds OpenCV + NumPy, ~450 MB):
 
 ```bash
-curl -LO https://github.com/tuitter/tuitter/releases/download/v0.1.0/tuitter-linux-x86_64.sha256
-sha256sum -c tuitter-linux-x86_64.sha256
+pipx inject tuitter "git+https://github.com/tuitter/tuitter.git[video]"
+# or during initial install:
+pipx install "git+https://github.com/tuitter/tuitter.git[video]"
 ```
 
-## Security notes
+### Installing Python (if needed)
 
-- Never run a remote install script blindly — inspect or pin the exact release URL and verify its SHA256/GPG signature.
-- Binaries may require platform-specific signing (macOS notarization or Windows code signing) to avoid OS warnings.
+| Platform      | Command                                                                                |
+| ------------- | -------------------------------------------------------------------------------------- |
+| macOS         | `brew install python@3.12`                                                             |
+| Ubuntu/Debian | `sudo apt install python3.12 python3.12-venv python3-pip`                              |
+| Arch          | `sudo pacman -S python`                                                                |
+| Fedora        | `sudo dnf install python3.12`                                                          |
+| Windows       | `winget install Python.Python.3.12` or [python.org](https://www.python.org/downloads/) |
 
 ## Troubleshooting
 
@@ -105,5 +125,5 @@ Reference backend architecture (brief): the example backend is a FastAPI applica
 ## Getting help & community
 
 - File issues or feature requests: https://github.com/tuitter/tuitter/issues
-- When asking for help, include the app version (`tuitter --version`) and your platform (OS and Python version).
+- When asking for help, include your platform (OS and Python version).
   -- Want to contribute? Open an issue or PR and we can help you get started.

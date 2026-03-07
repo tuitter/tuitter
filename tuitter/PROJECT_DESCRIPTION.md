@@ -1,6 +1,7 @@
 # Tuitter - Terminal-Based Social Network
 
 ## Inspiration
+
 Twitter + LazyGit = Tuitter
 
 We love the efficiency of terminal user interfaces like LazyGit and the social connectivity of Twitter. We asked ourselves: what if we could bring the best of both worlds together? What if you could engage with your social network using vim keybindings, without ever leaving your terminal? That's how Tuitter was born - a vim-style social network that makes social media feel like home for developers.
@@ -18,6 +19,7 @@ Tuitter is a fully-functional terminal user interface (TUI) social network that 
 - **Web-serveable** - Can run in terminal OR be served as a web application using Textual Web
 
 Key features:
+
 - 🚀 Real-time search filtering in Discover feed
 - 💬 Multi-conversation messaging system
 - 🎨 ASCII art profile pictures generated from images using our integrated asciifer tool
@@ -28,6 +30,7 @@ Key features:
 ## How we built it
 
 **Technology Stack:**
+
 - **Frontend**: Textual (Python framework for TUIs)
 - **Backend**: AWS Lambda + API Gateway (serverless architecture)
 - **Storage**: AWS S3 for media and profile pictures
@@ -129,6 +132,7 @@ We built Tuitter with a modern, scalable serverless architecture:
 ## What's next for Tuitter
 
 **Short-term:**
+
 - 🔐 **Real Backend Integration** - Connect to a FastAPI/Flask backend with PostgreSQL
 - 🔒 **Authentication** - JWT-based auth with OAuth providers (GitHub, GitLab, Google, Discord)
 - 📤 **Post Creation** - Implement the `:n` new post command with a compose dialog
@@ -137,6 +141,7 @@ We built Tuitter with a modern, scalable serverless architecture:
 - 🔍 **Advanced Search** - Full-text search with filters (tags, users, date ranges)
 
 **Medium-term:**
+
 - 📊 **Analytics Dashboard** - View your post performance and follower growth
 - 🧵 **Thread Support** - Create and view threaded conversations
 - 📎 **Media Attachments** - Share images and files in posts/messages
@@ -145,6 +150,7 @@ We built Tuitter with a modern, scalable serverless architecture:
 - 🔌 **Plugin System** - Allow community-built extensions and custom widgets
 
 **Long-term:**
+
 - 🤖 **AI Integration** - Smart replies, content summarization, and trending topic detection
 - 📱 **Mobile Companion** - Native mobile app that syncs with the TUI
 - 🎥 **Video/Audio Support** - ASCII video playback and audio message visualization
@@ -158,6 +164,7 @@ Transform Tuitter into the go-to social platform for developers and terminal ent
 ---
 
 ## Tech Stack Summary
+
 - **Frontend**: Python + Textual Framework
 - **Backend**: AWS Lambda (serverless functions)
 - **API**: AWS API Gateway (RESTful endpoints)
@@ -171,7 +178,7 @@ Transform Tuitter into the go-to social platform for developers and terminal ent
 ## Try it yourself!
 
 ```bash
-git clone --recurse-submodules https://github.com/DH-GM/proj101.git
+git clone --recurse-submodules https://github.com/tuitter/tuitter.git
 cd proj101
 python3 -m venv venv
 source venv/bin/activate
@@ -180,6 +187,7 @@ python3 main.py
 ```
 
 **Or run on web:**
+
 ```bash
 textual-web --config serve.toml
 ```
@@ -187,4 +195,3 @@ textual-web --config serve.toml
 ---
 
 Built with ❤️ for the terminal-loving community
-
