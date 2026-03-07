@@ -12,6 +12,8 @@ import keyring
 import requests
 from dotenv import load_dotenv
 from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from .auth_storage import load_tokens, save_tokens_full, get_username
 from .auth import refresh_tokens
 
@@ -159,11 +161,25 @@ class RealAPI(APIInterface):
     It expects a base_url like https://api.example.com and optional
     token-based auth via BACKEND_TOKEN env var.
     """
-    def __init__(self, base_url: str, token: str | None = None, timeout: float = 5.0, handle: str = "yourname"):
+    def __init__(self, base_url: str, token: str | None = None, timeout: float = 10.0, handle: str = "yourname"):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.handle = handle
         self.session: Session = requests.Session()
+        # Mount a retrying HTTP adapter to handle transient network errors / timeouts
+        try:
+            retries = Retry(
+                total=3,
+                backoff_factor=0.5,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=["HEAD", "GET", "OPTIONS", "POST", "PUT", "DELETE"],
+            )
+            adapter = HTTPAdapter(max_retries=retries)
+            self.session.mount("https://", adapter)
+            self.session.mount("http://", adapter)
+        except Exception:
+            # If urllib3 isn't available for some reason, continue with a plain session
+            pass
         # Track the currently-set bearer token (explicitly initialize)
         self.token: str | None = None
         if token:
@@ -205,6 +221,22 @@ class RealAPI(APIInterface):
             params = {}
         params.setdefault("handle", self.handle)
         url = f"{self.base_url}/{path.lstrip('/')}"
+
+        # Proactively refresh if the stored JWT is already expired locally.
+        # This avoids burning a full Lambda cold-start round-trip just to get a 401 back.
+        if retry and self.token:
+            try:
+                import base64 as _b64, json as _j, time as _t
+                _parts = self.token.split('.')
+                if len(_parts) == 3:
+                    _pad = 4 - len(_parts[1]) % 4
+                    _exp = _j.loads(_b64.urlsafe_b64decode(_parts[1] + '=' * _pad)).get('exp', None)
+                    if _exp is not None and _t.time() > _exp:
+                        logger.info("_request: token expired locally, refreshing before sending %s %s", method, path)
+                        if hasattr(self, 'try_restore_session'):
+                            self.try_restore_session()
+            except Exception:
+                pass
 
         try:
             m = method.upper()
@@ -587,7 +619,45 @@ class RealAPI(APIInterface):
                     if username:
                         self.handle = username
 
-                    # Quick validation call (include handle param required by backend)
+                    # Check JWT exp claim locally — if already expired, skip the /me
+                    # round-trip (which would just burn 1-2s on a cold Lambda) and go
+                    # straight to refresh_tokens().
+                    _token_already_expired = False
+                    try:
+                        import base64 as _b64, json as _j, time as _t
+                        _parts = access.split('.')
+                        if len(_parts) == 3:
+                            _pad = 4 - len(_parts[1]) % 4
+                            _claims = _j.loads(_b64.urlsafe_b64decode(_parts[1] + '=' * _pad))
+                            _token_already_expired = _t.time() > _claims.get('exp', 0)
+                            _debug_logger.debug(
+                                "try_restore_session: token exp=%s now=%s expired=%s",
+                                _claims.get('exp'), int(_t.time()), _token_already_expired,
+                            )
+                    except Exception:
+                        pass
+
+                    if _token_already_expired and refresh:
+                        _debug_logger.debug("try_restore_session: token locally expired, skipping /me, refreshing immediately")
+                        try:
+                            new_tokens = refresh_tokens(refresh)
+                            _debug_logger.debug("try_restore_session: proactive refresh returned type=%s", type(new_tokens).__name__)
+                            if new_tokens and isinstance(new_tokens, dict) and new_tokens.get('access_token'):
+                                try:
+                                    self.set_token(new_tokens['access_token'])
+                                except Exception:
+                                    _debug_logger.exception("try_restore_session: set_token failed after proactive refresh")
+                                try:
+                                    save_tokens_full(new_tokens, username)
+                                    _debug_logger.debug("try_restore_session: saved proactively refreshed tokens")
+                                except Exception:
+                                    _debug_logger.exception("try_restore_session: save_tokens_full failed (non-fatal)")
+                                return True
+                        except Exception:
+                            _debug_logger.exception("try_restore_session: proactive refresh failed")
+                        return False
+
+                    # Token looks valid locally — confirm with a quick /me call.
                     try:
                         resp = self.session.get(f"{self.base_url}/me", params={"handle": self.handle}, timeout=self.timeout)
                         _debug_logger.debug("try_restore_session: /me validation status=%s", getattr(resp, 'status_code', None))
@@ -667,9 +737,14 @@ class RealAPI(APIInterface):
             logging.getLogger("tuitter.api").exception("try_restore_session failed: %s", e)
             return False
 
-# Global api selection: prefer real backend when BACKEND_URL is set
+# Global api selection: prefer BACKEND_URL env, then API_BASE_URL env or package default
+try:
+    from .env import API_BASE_URL as _DEFAULT_API_BASE_URL
+except Exception:
+    _DEFAULT_API_BASE_URL = None
+
 # Allow overriding backend URL via environment for local development
-_BACKEND_URL = os.getenv("BACKEND_URL") or "https://voqbyhcnqe.execute-api.us-east-2.amazonaws.com"
+_BACKEND_URL = os.getenv("BACKEND_URL") or os.getenv("API_BASE_URL") or _DEFAULT_API_BASE_URL or "https://74o42xhqpk.execute-api.us-east-2.amazonaws.com"
 
 # Initialize global `api` client. Prefer the saved username from auth_storage
 # (keyring) when available so requests that rely on `api.handle` use the
