@@ -2107,7 +2107,10 @@ class NewPostDialog(ModalScreen):
                     return
 
                 try:
-                    ascii_art = image_to_braille_art(file_path, cols=80)
+                    # Use terminal width minus sidebar (~28 cols) and borders (~6 cols)
+                    _term_w = self.app.size.width if self.app else 120
+                    _art_cols = max(30, _term_w - 35)
+                    ascii_art = image_to_braille_art(file_path, cols=_art_cols)
 
                     # Remove any existing photo attachment so we only keep one image
                     try:
@@ -4571,7 +4574,10 @@ class SettingsPanel(VerticalScroll):
 
                 # Inline braille conversion for profile picture preview
                 try:
-                    ascii_art = image_to_braille_art(file_path, cols=40)
+                    # Profile panel is ~1/4 of terminal width
+                    _term_w = self.app.size.width if self.app else 120
+                    _art_cols = max(15, (_term_w // 4) - 4)
+                    ascii_art = image_to_braille_art(file_path, cols=_art_cols)
 
                 except Exception:
                     # Fallback: notify and abort if conversion fails
