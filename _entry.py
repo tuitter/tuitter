@@ -1,7 +1,7 @@
 # PyInstaller entry point - uses absolute imports to avoid relative import errors
 import os
 import warnings
-warnings.filterwarnings("ignore", category=UserWarning, module="requests")
+warnings.filterwarnings("ignore", message=".*character detection.*")
 from pathlib import Path
 from tuitter.main import Proj101App
 
