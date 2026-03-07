@@ -345,9 +345,30 @@ class RealAPI(APIInterface):
         # Backend uses 'unread' parameter, not 'unread_only'
         params = {"unread": "true"} if unread_only else {}
         data = self._get("/notifications", params=params)
-        notif_fields = Notification.__dataclass_fields__.keys()
-        filtered = [{k: v for k, v in n.items() if k in notif_fields} for n in data]
-        return [Notification(**n) for n in filtered]
+        result = []
+        for n in data:
+            try:
+                raw_ts = n.get("created_at") or n.get("timestamp")
+                if isinstance(raw_ts, str):
+                    raw_ts = raw_ts.replace("Z", "+00:00")
+                    ts = datetime.fromisoformat(raw_ts)
+                elif isinstance(raw_ts, datetime):
+                    ts = raw_ts
+                else:
+                    ts = datetime.min
+                result.append(Notification(
+                    id=n.get("id"),
+                    type=n.get("type", ""),
+                    actor=n.get("actor", ""),
+                    username=n.get("username", n.get("actor", "")),
+                    content=n.get("content", ""),
+                    timestamp=ts,
+                    read=n.get("read", False),
+                    related_post=n.get("post_id") or n.get("related_post"),
+                ))
+            except Exception:
+                pass
+        return result
 
     def mark_notification_read(self, notification_id: int) -> bool:
         self._post(f"/notifications/{notification_id}/read")

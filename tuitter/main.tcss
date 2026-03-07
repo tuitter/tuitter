@@ -1253,6 +1253,20 @@ Button.delete-profile-picture.danger:hover {
     border: solid $border-hover;
 }
 
+.notification-item.vim-cursor {
+    background: $bg-dark;
+    color: $text-primary;
+    border: solid $border-hover;
+    text-style: bold;
+}
+
+.notification-item.unread.vim-cursor {
+    background: $bg-dark;
+    color: $text-primary;
+    border: solid $notif-unread-hover;
+    text-style: bold;
+}
+
 .notification-item.unread:hover {
     border: solid $notif-unread-hover;
 }
