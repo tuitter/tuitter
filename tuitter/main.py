@@ -776,6 +776,15 @@ class CommentFeed(VerticalScroll):
         self.comments = api.get_comments(self.post.id)
         logging.debug(f"[compose] Comments fetched: {self.comments}")
 
+        # Sort newest first
+        def _comment_ts(c):
+            raw = c.get("timestamp") or c.get("created_at") or ""
+            try:
+                return datetime.fromisoformat(raw)
+            except Exception:
+                return datetime.min
+        self.comments = sorted(self.comments, key=_comment_ts, reverse=True)
+
         for i, c in enumerate(self.comments):
             author = c.get("user", "unknown")
             content = c.get("text", "")
@@ -867,6 +876,15 @@ class CommentFeed(VerticalScroll):
 
             # Fetch updated comments
             self.comments = api.get_comments(self.post.id)
+
+            # Sort newest first
+            def _comment_ts(c):
+                raw = c.get("timestamp") or c.get("created_at") or ""
+                try:
+                    return datetime.fromisoformat(raw)
+                except Exception:
+                    return datetime.min
+            self.comments = sorted(self.comments, key=_comment_ts, reverse=True)
 
             # Add new comments
             for i, c in enumerate(self.comments):
