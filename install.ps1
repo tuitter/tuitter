@@ -50,9 +50,26 @@ Write-Green "Fetching release info..."
 $downloadUrl = Get-DownloadUrl
 
 if ($downloadUrl) {
+    Write-Host ""
+    Write-Yellow "NOTE: Windows Defender may block auto-download of unsigned executables."
+    Write-Yellow "If this script crashes, download the binary directly in your browser:"
+    Write-Host "  $downloadUrl" -ForegroundColor White
+    Write-Host ""
+
     Write-Green "Downloading $AssetName..."
     New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-    (New-Object System.Net.WebClient).DownloadFile($downloadUrl, $Dest)
+    try {
+        (New-Object System.Net.WebClient).DownloadFile($downloadUrl, $Dest)
+    } catch {
+        Write-Red "Download failed (Windows Defender may have blocked it)."
+        Write-Host ""
+        Write-Host "Download manually in your browser and save to:" -ForegroundColor White
+        Write-Host "  $Dest" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Or download URL:" -ForegroundColor White
+        Write-Host "  $downloadUrl" -ForegroundColor White
+        exit 1
+    }
     Write-Host ""
     Write-Green "tuitter installed to $Dest"
     if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $BinDir })) {
