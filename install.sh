@@ -80,11 +80,26 @@ fi
 
 mkdir -p "$INSTALL_DIR"
 DEST="$INSTALL_DIR/$BINARY_NAME"
+
+echo ""
+yellow "NOTE: Security software may block unsigned executables."
+yellow "If this script crashes, download the binary directly in your browser:"
+printf '  %s\n' "$DOWNLOAD_URL"
+echo ""
+
 green "Downloading..."
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL --progress-bar -o "$DEST" "$DOWNLOAD_URL"
+  if ! curl -fsSL --progress-bar -o "$DEST" "$DOWNLOAD_URL"; then
+    red "Download failed. Download manually from:"
+    printf '  %s\n' "$DOWNLOAD_URL"
+    exit 1
+  fi
 else
-  wget -q --show-progress -O "$DEST" "$DOWNLOAD_URL"
+  if ! wget -q --show-progress -O "$DEST" "$DOWNLOAD_URL"; then
+    red "Download failed. Download manually from:"
+    printf '  %s\n' "$DOWNLOAD_URL"
+    exit 1
+  fi
 fi
 chmod +x "$DEST"
 
