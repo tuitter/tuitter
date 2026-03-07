@@ -134,7 +134,7 @@ class TuitterNatFreeStack(Stack):
                 "R2_ACCESS_KEY_ID": r2_secret.secret_value_from_json("access_key_id").to_string(),
                 "R2_SECRET_ACCESS_KEY": r2_secret.secret_value_from_json("secret_access_key").to_string(),
                 "R2_BUCKET_NAME": "tuitter-images",
-                "R2_PUBLIC_URL": "https://pub-77dc0778b6d6493c95fb6f8bb1cf56e2.r2.dev",
+                "R2_PUBLIC_URL": "https://pub-77dc0778b6d6493c95fb6f6bb1cf56e2.r2.dev",
             },
         )
 
