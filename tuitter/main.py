@@ -1785,6 +1785,7 @@ class Sidebar(VerticalScroll):
             elif self.current_screen in ("timeline", "discover"):
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
+                yield CommandItem(":del", "delete post", classes="command-item")
                 # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
                 yield CommandItem("[Enter]", "comments", classes="command-item")
             elif self.current_screen == "notifications":
@@ -2700,6 +2701,101 @@ class DeleteDraftDialog(ModalScreen):
             self.dismiss(True)
         elif btn_id == "cancel-delete":
             self.dismiss(False)
+
+
+class DeletePostDialog(ModalScreen):
+    """Modal dialog for confirming post deletion."""
+
+    cursor_position = reactive(0)  # 0 = Yes, 1 = Cancel
+
+    def __init__(self, post_id: int, post_item=None):
+        super().__init__()
+        self.post_id = post_id
+        self.post_item = post_item
+
+    def on_mount(self) -> None:
+        self.cursor_position = 0
+
+    def compose(self) -> ComposeResult:
+        with Container(id="dialog-container"):
+            yield Static("Delete Post?", id="dialog-title")
+            yield Static(
+                "Are you sure you want to delete this post? This cannot be undone.",
+                classes="dialog-message",
+            )
+            with Container(id="action-buttons"):
+                confirm_btn = Button("\u2713 Yes, Delete", id="confirm-delete")
+                cancel_btn = Button("Cancel", id="cancel-delete")
+                if self.cursor_position == 0:
+                    confirm_btn.add_class("selected")
+                else:
+                    cancel_btn.add_class("selected")
+                yield confirm_btn
+                yield cancel_btn
+        yield Static(
+            "\\[h/l] select  |  \\[enter] confirm  |  \\[esc] cancel",
+            id="vim-hints",
+            classes="vim-hints",
+        )
+
+    def _update_cursor(self) -> None:
+        try:
+            confirm_btn = self.query_one("#confirm-delete", Button)
+            cancel_btn = self.query_one("#cancel-delete", Button)
+            if self.cursor_position == 0:
+                confirm_btn.add_class("selected")
+                cancel_btn.remove_class("selected")
+            else:
+                cancel_btn.add_class("selected")
+                confirm_btn.remove_class("selected")
+        except Exception:
+            pass
+
+    def watch_cursor_position(self, old: int, new: int) -> None:
+        self._update_cursor()
+
+    def key_h(self) -> None:
+        if not self.app.command_mode:
+            self.cursor_position = 0
+
+    def key_l(self) -> None:
+        if not self.app.command_mode:
+            self.cursor_position = 1
+
+    def key_escape(self) -> None:
+        self.dismiss(False)
+
+    def key_enter(self) -> None:
+        if self.app.command_mode:
+            return
+        if self.cursor_position == 0:
+            self._do_delete()
+        else:
+            self.dismiss(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "confirm-delete":
+            self._do_delete()
+        elif btn_id == "cancel-delete":
+            self.dismiss(False)
+
+    def _do_delete(self) -> None:
+        try:
+            api.delete_post(self.post_id)
+            # Remove the post widget from the DOM
+            if self.post_item is not None:
+                try:
+                    self.post_item.remove()
+                except Exception:
+                    pass
+            self.dismiss(True)
+        except Exception as e:
+            self.dismiss(False)
+            try:
+                self.app.notify(f"Failed to delete post: {e}", severity="error")
+            except Exception:
+                pass
 
 
 # ───────── Screens ─────────
@@ -8165,6 +8261,63 @@ class Proj101App(App):
                                         logging.exception("Error toggling repost")
                         except Exception:
                             pass
+                elif command == "del":
+                    # Delete the currently focused post (only if it belongs to the logged-in user)
+                    def _get_focused_post_for_delete():
+                        screen = self.current_screen_name
+                        if screen == "timeline":
+                            try:
+                                timeline_feed = self.query_one("#timeline-feed")
+                                items = list(timeline_feed.query(".post-item"))
+                                idx = getattr(timeline_feed, "cursor_position", 0)
+                                if 0 <= idx < len(items):
+                                    pi = items[idx]
+                                    return getattr(pi, "post", None), pi
+                            except Exception:
+                                pass
+                        elif screen == "discover":
+                            try:
+                                discover_feed = self.query_one("#discover-feed")
+                                items = list(discover_feed.query(".post-item"))
+                                idx = getattr(discover_feed, "cursor_position", 0)
+                                if 0 <= idx < len(items):
+                                    pi = items[idx]
+                                    return getattr(pi, "post", None), pi
+                            except Exception:
+                                pass
+                        elif screen == "profile":
+                            try:
+                                try:
+                                    profile_view = self.query_one("#profile-view", ProfileView)
+                                except Exception:
+                                    profile_panel = self.query_one("#profile-panel")
+                                    profile_view = profile_panel.query_one(ProfileView)
+                                rows = profile_view._rows()
+                                r = getattr(profile_view, "cursor_row", 0)
+                                if 0 <= r < len(rows) and rows[r]:
+                                    pi = rows[r][0]
+                                    return getattr(pi, "post", None), pi
+                            except Exception:
+                                pass
+                        return None, None
+
+                    del_post, del_post_item = _get_focused_post_for_delete()
+                    if del_post is not None:
+                        current_user = (get_username() or getattr(api, "handle", "") or "").lower()
+                        post_author = (getattr(del_post, "author", "") or "").lower()
+                        if post_author == current_user:
+                            def _on_delete_result(deleted):
+                                if deleted:
+                                    self.notify("Post deleted!", severity="success")
+                            self.push_screen(
+                                DeletePostDialog(del_post.id, post_item=del_post_item),
+                                _on_delete_result,
+                            )
+                        else:
+                            self.notify("You can only delete your own posts.", severity="warning")
+                    else:
+                        self.notify("No post selected.", severity="warning")
+
                 elif command.startswith("o") and len(command) > 1:
                     try:
                         draft_number = int(command[1:])  # User enters 1-indexed

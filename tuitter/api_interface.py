@@ -149,6 +149,7 @@ class APIInterface:
     def unlike_post(self, post_id: int) -> bool: ...
     def repost(self, post_id: int) -> bool: ...
     def unrepost(self, post_id: int) -> bool: ...
+    def delete_post(self, post_id: int) -> bool: ...
     # comments
     def get_comments(self, post_id: int) -> List[Dict[str, Any]]: ...
     def add_comment(self, post_id: int, text: str) -> Dict[str, Any]: ...
@@ -209,6 +210,9 @@ class RealAPI(APIInterface):
 
     def _patch(self, path: str, json_payload: Dict[str, Any] | None = None, params: Dict[str, Any] | None = None) -> Any:
         return self._request("PATCH", path, params=params, json_payload=json_payload)
+
+    def _delete(self, path: str, params: Dict[str, Any] | None = None) -> Any:
+        return self._request("DELETE", path, params=params)
 
     def _request(self, method: str, path: str, params: Dict[str, Any] | None = None, json_payload: Dict[str, Any] | None = None, retry: bool = True) -> Any:
         """Internal request helper that will attempt a single refresh+retry on 401.
@@ -463,6 +467,10 @@ class RealAPI(APIInterface):
 
     def repost(self, post_id: int) -> bool:
         self._post(f"/posts/{post_id}/repost")
+        return True
+
+    def delete_post(self, post_id: int) -> bool:
+        self._delete(f"/posts/{post_id}")
         return True
 
     def unrepost(self, post_id: int) -> bool:
