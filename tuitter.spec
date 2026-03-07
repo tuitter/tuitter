@@ -4,9 +4,15 @@
 import sys
 import os
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
 HERE = Path(SPECPATH)  # directory containing this .spec file
+
+# Collect ALL textual submodules + data (CSS themes, etc.) -- textual uses
+# dynamic lazy imports via __getattr__ that PyInstaller cannot statically detect.
+textual_hidden = collect_submodules("textual")
+textual_datas = collect_data_files("textual")
 
 a = Analysis(
     [str(HERE / "_entry.py")],
@@ -17,9 +23,9 @@ a = Analysis(
         (str(HERE / "tuitter" / "main.tcss"), "tuitter"),
         # Subway ASCII video frames
         (str(HERE / "tuitter" / "subway_ascii_frames"), "tuitter/subway_ascii_frames"),
-    ],
-    hiddenimports=[
-        # Textual internals
+    ] + textual_datas,
+    hiddenimports=textual_hidden + [
+        # Textual internals (belt-and-suspenders)
         "textual",
         "textual.app",
         "textual.widgets",
