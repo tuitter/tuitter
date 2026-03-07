@@ -8,6 +8,7 @@
 #   Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference    = "SilentlyContinue"  # prevents terminal crash on large downloads
 
 $Repo      = "tuitter/tuitter"
 $AssetName = "tuitter-windows-x86_64.exe"
@@ -26,7 +27,7 @@ Write-Host ""
 function Get-DownloadUrl {
     # Try stable release first
     try {
-        $r = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+        $r = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
         foreach ($a in $r.assets) {
             if ($a.name -eq $AssetName) { return [string]$a.browser_download_url }
         }
@@ -34,7 +35,7 @@ function Get-DownloadUrl {
 
     # Fall back to most recent release including pre-releases
     try {
-        $list = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases"
+        $list = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" -UseBasicParsing
         foreach ($r in $list) {
             foreach ($a in $r.assets) {
                 if ($a.name -eq $AssetName) { return [string]$a.browser_download_url }
@@ -51,7 +52,7 @@ $downloadUrl = Get-DownloadUrl
 if ($downloadUrl) {
     Write-Green "Downloading $AssetName..."
     New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $Dest
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $Dest -UseBasicParsing
     Write-Host ""
     Write-Green "tuitter installed to $Dest"
     if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $BinDir })) {
