@@ -20,10 +20,10 @@ jobs:
           - os: ubuntu-22.04
             osname: linux-x86_64
             artifact: tuitter-linux-x86_64
-          - os: macos-13          # Intel x86_64
+          - os: macos-13 # Intel x86_64
             osname: macos-x86_64
             artifact: tuitter-macos-x86_64
-          - os: macos-latest      # Apple Silicon arm64
+          - os: macos-latest # Apple Silicon arm64
             osname: macos-arm64
             artifact: tuitter-macos-arm64
           - os: windows-latest
