@@ -1842,26 +1842,28 @@ class NewPostDialog(ModalScreen):
     def compose(self) -> ComposeResult:
         with Container(id="dialog-container"):
             yield Static("Create New Post", id="dialog-title")
-            yield TextArea(id="post-textarea")
-            # Key hints for vim navigation
-            yield Static(
-                "\\[i] edit | \\[r] remove photo | \\[esc] navigate",
-                id="vim-hints",
-                classes="vim-hints",
-            )
-            # Status/attachments display area
-            yield Static("", id="attachments-list", classes="attachments-list")
-            yield Static("", id="status-message", classes="status-message")
+            # Scrollable content area
+            with VerticalScroll(id="dialog-scroll"):
+                yield TextArea(id="post-textarea")
+                # Status/attachments display area
+                yield Static("", id="attachments-list", classes="attachments-list")
+                yield Static("", id="status-message", classes="status-message")
 
-            # Media attachment buttons
-            with Container(id="media-buttons"):
-                yield Button("Add Photo", id="attach-photo")
+                # Media attachment buttons
+                with Container(id="media-buttons"):
+                    yield Button("Add Photo", id="attach-photo")
 
-            # Action buttons
+            # Action buttons pinned outside the scroll area
             with Container(id="action-buttons"):
                 yield Button("Post", variant="primary", id="post-button")
                 yield Button("Save", id="draft-button")
                 yield Button("Cancel", id="cancel-button")
+        # Key hints rendered outside the box so they're always visible
+        yield Static(
+            "\\[i] edit | \\[r] remove photo | \\[esc] navigate",
+            id="vim-hints",
+            classes="vim-hints",
+        )
 
     def on_mount(self) -> None:
         """Focus the textarea when dialog opens."""
@@ -1911,9 +1913,15 @@ class NewPostDialog(ModalScreen):
             # In insert mode, textarea has focus
             textarea.focus()
         else:
-            # In navigation mode, highlight current button
+            # In navigation mode, highlight current button and scroll to it
             if 1 <= self.cursor_position <= len(buttons):
-                buttons[self.cursor_position - 1].add_class("vim-cursor")
+                btn = buttons[self.cursor_position - 1]
+                btn.add_class("vim-cursor")
+                try:
+                    container = self.query_one("#dialog-container")
+                    container.scroll_to_widget(btn, animate=False)
+                except Exception:
+                    pass
 
     def watch_cursor_position(self, old: int, new: int) -> None:
         """React to cursor position changes."""
@@ -2222,11 +2230,13 @@ class NewPostDialog(ModalScreen):
                 return
             lines = ["Attachments:"]
             for i, (t, p) in enumerate(self._attachments, start=1):
-                short = Path(p).name
-                icon = {"file": "[file]", "photo": "[photo]"}.get(t, "[attach]")
                 if t == "ascii_photo":
-                    lines.append(f"\n{p}")  # p is the ASCII art itself
-                widget.update("\n".join(lines))
+                    lines.append("\n" + p)
+                else:
+                    short = Path(p).name
+                    icon = {"file": "[file]", "photo": "[photo]"}.get(t, "[attach]")
+                    lines.append(f"  {icon} {short}")
+            widget.update("\n".join(lines))
         except Exception:
             pass
 
