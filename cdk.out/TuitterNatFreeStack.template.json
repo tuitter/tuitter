@@ -263,7 +263,7 @@
        ]
       },
       "R2_BUCKET_NAME": "tuitter-images",
-      "R2_PUBLIC_URL": "https://pub-77dc0778b6d6493c95fb6f8bb1cf56e2.r2.dev"
+      "R2_PUBLIC_URL": "https://pub-77dc0778b6d6493c95fb6f6bb1cf56e2.r2.dev"
      }
     },
     "FunctionName": "tuitter-api",

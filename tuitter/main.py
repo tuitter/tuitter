@@ -1934,7 +1934,7 @@ class NewPostDialog(ModalScreen):
             with VerticalScroll(id="dialog-scroll"):
                 yield TextArea(id="post-textarea")
                 # Status/attachments display area
-                yield Static("", id="attachments-list", classes="attachments-list")
+                yield Static("", id="attachments-list", classes="attachments-list", markup=False)
                 yield Static("", id="status-message", classes="status-message")
 
                 # Media attachment buttons
@@ -1965,6 +1965,7 @@ class NewPostDialog(ModalScreen):
         self._attachments = (
             self.draft_attachments.copy() if self.draft_attachments else []
         )
+        self._preview_art: str | None = None  # braille preview for compose dialog
 
         # Update attachments display
         self._update_attachments_display()
@@ -2036,9 +2037,10 @@ class NewPostDialog(ModalScreen):
             return
         try:
             before = len(getattr(self, "_attachments", []))
-            self._attachments = [a for a in getattr(self, "_attachments", []) if not (a and a[0] in ("photo", "ascii_photo"))]
+            self._attachments = [a for a in getattr(self, "_attachments", []) if not (a and a[0] in ("photo", "ascii_photo", "image_url"))]
             after = len(self._attachments)
             if after < before:
+                self._preview_art = None
                 self._update_attachments_display()
                 self._show_status("Photo removed.")
             else:
@@ -2165,6 +2167,17 @@ class NewPostDialog(ModalScreen):
                         self._show_status("Uploading image...")
                         _url = api.upload_image(file_path)
                         self._attachments.append(("image_url", _url))
+                        # Generate local braille preview for the compose dialog
+                        try:
+                            try:
+                                _cols = self.query_one("#post-textarea").size.width
+                                if not _cols or _cols < 20:
+                                    raise ValueError
+                            except Exception:
+                                _cols = max(40, (self.size.width or 80) - 12)
+                            self._preview_art = image_to_braille_art(file_path, cols=_cols)
+                        except Exception:
+                            self._preview_art = None
                         self._update_attachments_display()
                         self._show_status("✓ Photo uploaded!")
                         _uploaded = True
@@ -2289,20 +2302,27 @@ class NewPostDialog(ModalScreen):
 
     def _update_attachments_display(self) -> None:
         """Update the attachments display area."""
+        from rich.text import Text
         try:
             widget = self.query_one("#attachments-list", Static)
             if not self._attachments:
-                widget.update("")
+                widget.update(Text(""))
                 return
             lines = ["Attachments:"]
             for i, (t, p) in enumerate(self._attachments, start=1):
                 if t == "ascii_photo":
-                    lines.append("\n" + p)
+                    lines.append(p)
+                elif t == "image_url":
+                    preview = getattr(self, "_preview_art", None)
+                    if preview:
+                        lines.append(preview)
+                    else:
+                        lines.append("  [photo attached]")
                 else:
                     short = Path(p).name
                     icon = {"file": "[file]", "photo": "[photo]"}.get(t, "[attach]")
                     lines.append(f"  {icon} {short}")
-            widget.update("\n".join(lines))
+            widget.update(Text("\n".join(lines)))
         except Exception:
             pass
 

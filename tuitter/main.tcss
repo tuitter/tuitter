@@ -2301,3 +2301,7 @@ Button#confirm-delete:hover {
     background: $accent-red-hover;
     border: solid $accent-red-hover;
 }
+
+.attachments-list {
+    overflow-x: hidden;
+}
