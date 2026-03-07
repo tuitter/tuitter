@@ -2058,6 +2058,9 @@ NewPostDialog > #vim-hints {
     background: $bg-dark;
     border: round $color-cyan;
     padding: 2 3;
+}
+
+DeletePostDialog {
     align: center middle;
 }
 
