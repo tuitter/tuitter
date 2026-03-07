@@ -22,79 +22,50 @@ function Write-Bold($msg)   { Write-Host $msg -ForegroundColor Cyan }
 Write-Bold "tuitter installer for Windows"
 Write-Host ""
 
-# 1. Try prebuilt binary (preferred - no Python required)
-try {
-    Write-Green "Fetching latest release info..."
-    $api = "https://api.github.com/repos/$Repo/releases/latest"
-    $release = Invoke-RestMethod -Uri $api -UseBasicParsing
-    $asset = $release.assets | Where-Object { $_.name -eq $Asset } | Select-Object -First 1
-
-    if ($asset) {
-        Write-Green "Downloading $Asset..."
-        New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $Dest -UseBasicParsing
-        Write-Host ""
-        Write-Green "tuitter installed to $Dest"
-        if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $BinDir })) {
-            [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";$BinDir", "User")
-            Write-Yellow "Added $BinDir to your PATH. Restart your terminal."
-        }
-        Write-Host ""
-        Write-Bold "Done! Open a new terminal and run: tuitter"
-        exit 0
-    } else {
-        Write-Yellow "Prebuilt binary not found in latest release - falling back to pip install."
-    }
-} catch {
-    Write-Yellow "Could not download binary - falling back to pip install."
-}
-
-# 2. Fallback: pip / pipx install (requires Python 3.10+)
-Write-Yellow ""
-Write-Yellow "Falling back to pip-based install (requires Python 3.10+)."
-Write-Host ""
-
-$python = $null
-foreach ($cmd in @("python3.13","python3.12","python3.11","python3.10","python3","python","py")) {
+# Find the asset across stable and pre-releases
+function Get-ReleaseAsset {
+    # Try stable release first
     try {
-        $ver = & $cmd -c "import sys; print(str(sys.version_info.major) + '.' + str(sys.version_info.minor))" 2>$null
-        if ($ver -match "^3\.([0-9]+)$" -and [int]$Matches[1] -ge 10) {
-            $python = $cmd; break
+        $r = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
+        $a = $r.assets | Where-Object { $_.name -eq $Asset } | Select-Object -First 1
+        if ($a) { return $a }
+    } catch {}
+
+    # Fall back to the most recent release (including pre-releases)
+    try {
+        $list = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" -UseBasicParsing
+        foreach ($r in $list) {
+            $a = $r.assets | Where-Object { $_.name -eq $Asset } | Select-Object -First 1
+            if ($a) { return $a }
         }
     } catch {}
+
+    return $null
 }
 
-if (-not $python) {
-    Write-Red "Python 3.10+ not found."
-    Write-Host ""
-    Write-Host "Install Python from https://www.python.org/downloads/"
-    Write-Host "  (check: Add Python to PATH during install)"
-    Write-Host "or:  winget install Python.Python.3.12"
-    Write-Host ""
-    Write-Host "Or download the binary directly from:"
-    Write-Host "  https://github.com/$Repo/releases/latest"
-    exit 1
-}
+Write-Green "Fetching release info..."
+$asset = Get-ReleaseAsset
 
-Write-Green "Found Python: $( & $python --version )"
-
-$pkg = "git+https://github.com/$Repo.git"
-$usePipx = $false
-try { & pipx --version | Out-Null; $usePipx = $true } catch {}
-try { & $python -m pipx --version | Out-Null; $usePipx = $true } catch {}
-
-if ($usePipx) {
-    try { & pipx install $pkg --force } catch { & $python -m pipx install $pkg --force }
-} else {
-    Write-Yellow "pipx not found - installing into dedicated venv..."
-    $venv = "$env:LOCALAPPDATA\tuitter\.venv"
-    & $python -m venv $venv
-    & "$venv\Scripts\pip.exe" install --quiet --upgrade pip
-    & "$venv\Scripts\pip.exe" install $pkg
+if ($asset) {
+    Write-Green "Downloading $Asset..."
     New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-    Set-Content -Path "$BinDir\tuitter.cmd" -Value "@echo off`r`n`"$venv\Scripts\tuitter.exe`" %*"
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $Dest -UseBasicParsing
+    Write-Host ""
+    Write-Green "tuitter installed to $Dest"
+    if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $BinDir })) {
+        [Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";$BinDir", "User")
+        Write-Yellow "Added $BinDir to your PATH. Restart your terminal."
+    }
+    Write-Host ""
+    Write-Bold "Done! Open a new terminal and run: tuitter"
+    exit 0
 }
 
+Write-Red "No prebuilt binary found."
 Write-Host ""
-Write-Green "tuitter installed!"
-Write-Bold "Done! Open a new terminal and run: tuitter"
+Write-Host "Download it manually from:"
+Write-Host "  https://github.com/$Repo/releases"
+Write-Host ""
+Write-Host "Or install via pip (requires Python 3.10+):"
+Write-Host "  pip install git+https://github.com/$Repo.git"
+exit 1
