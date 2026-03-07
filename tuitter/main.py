@@ -4092,14 +4092,14 @@ class SettingsPanel(VerticalScroll):
             user = None
 
         # Header
-        yield Static("settings.profile | line 1", classes="panel-header")
+        username = get_username()
+        if username is None:
+            username = user.username if user else "yourname"
+        yield Static(f"settings | @{username}", classes="panel-header")
 
         # Profile Picture section
-
-        # Display current ascii avatar if available. Wrap it in a container
-        # so it appears boxed in Settings like in the profile view. If
-        # ascii_pic is empty, show a helpful placeholder so the user knows
-        # there's no profile picture yet.
+        yield Static("── Profile Picture ──────────────────", classes="settings-section-header")
+        # Display current ascii avatar if available.
         avatar_text = getattr(settings, "ascii_pic", "") if settings else "(not available)"
         if not avatar_text or (isinstance(avatar_text, str) and avatar_text.strip() == ""):
             avatar_text = "No profile picture available"
@@ -4120,11 +4120,6 @@ class SettingsPanel(VerticalScroll):
             id="upload-profile-picture",
             classes="upload-profile-picture save-changes-btn",
         )
-
-        # Display current ascii avatar if available
-        avatar_text = (
-            getattr(settings, "ascii_pic", "") if settings else (user.ascii_pic if user else "(not available)")
-        )
         yield Button(
             "Remove file",
             id="delete-profile-picture",
@@ -4132,27 +4127,12 @@ class SettingsPanel(VerticalScroll):
         )
 
         # Account information
-        yield Static("\n→ Account Information", classes="settings-section-header")
-        username = get_username()
-        if username is None:
-            if user:
-                username = user.username
-            elif settings:
-                username = getattr(settings, "username", "yourname")
-            else:
-                username = "yourname"
-        yield Static(f"  Username:\n  @{username}", classes="settings-field")
-        if user:
-            yield Static(
-                f"\n  Display Name:\n  {user.display_name}",
-                classes="settings-field",
-            )
-            yield Static(f"\n  Bio:\n  {user.bio}", classes="settings-field")
-        else:
-            yield Static("\n  Display Name:\n  (loading)", classes="settings-field")
-            yield Static("\n  Bio:\n  (loading)", classes="settings-field")
+        yield Static("── Account ─────────────────────────", classes="settings-section-header")
+        yield Static(f"  @{username}", classes="settings-field settings-field-selectable", id="settings-username")
+        if user and user.display_name:
+            yield Static(f"{user.display_name}", id="settings-display-name", classes="settings-field settings-field-selectable")
 
-        yield Static("  Bio:", classes="settings-section-header")
+        yield Static("── Bio ──────────────────────────────", classes="settings-section-header")
         # Get bio text from user if available
         bio_text = user.bio if user and user.bio else ""
         # Include both `settings-field` and `settings-field-selectable`
@@ -4168,85 +4148,11 @@ class SettingsPanel(VerticalScroll):
         )
 
         # Profile changes section (Save button for bio/other profile edits)
-        yield Static("\n→ Profile Changes", classes="settings-section-header")
+        yield Static("── Save ─────────────────────────────", classes="settings-section-header")
         yield Button("Save Changes", id="settings-save-changes", variant="primary", classes="save-changes-btn")
 
-        # # OAuth connections - use Buttons so they are navigable
-        # yield Static("\n→ OAuth Connections", classes="settings-section-header")
-        # github_status = (
-        #     "Connected"
-        #     if settings and getattr(settings, "github_connected", False)
-        #     else "[Enter] Connect"
-        # )
-        # gitlab_status = (
-        #     "Connected"
-        #     if settings and getattr(settings, "gitlab_connected", False)
-        #     else "[Enter] Connect"
-        # )
-        # google_status = (
-        #     "Connected"
-        #     if settings and getattr(settings, "google_connected", False)
-        #     else "[Enter] Connect"
-        # )
-        # discord_status = (
-        #     "Connected"
-        #     if settings and getattr(settings, "discord_connected", False)
-        #     else "[Enter] Connect"
-        # )
-        # yield Button(
-        #     f"  GitHub                                              {github_status}",
-        #     id="oauth-github",
-        #     classes="oauth-item",
-        # )
-        # yield Button(
-        #     f"  GitLab                                              {gitlab_status}",
-        #     id="oauth-gitlab",
-        #     classes="oauth-item",
-        # )
-        # yield Button(
-        #     f"  Google                                              {google_status}",
-        #     id="oauth-google",
-        #     classes="oauth-item",
-        # )
-        # yield Button(
-        #     f"  Discord                                             {discord_status}",
-        #     id="oauth-discord",
-        #     classes="oauth-item",
-        # )
-
-        # # Preferences
-        # yield Static("\n→ Preferences", classes="settings-section-header")
-        # email_check = (
-        #     "✅"
-        #     if settings and getattr(settings, "email_notifications", False)
-        #     else "⬜"
-        # )
-        # online_check = (
-        #     "✅"
-        #     if settings and getattr(settings, "show_online_status", False)
-        #     else "⬜"
-        # )
-        # private_check = (
-        #     "✅" if settings and getattr(settings, "private_account", False) else "⬜"
-        # )
-        # yield Button(
-        #     f"  {email_check} Email notifications",
-        #     id="pref-email_notifications",
-        #     classes="checkbox-item",
-        # )
-        # yield Button(
-        #     f"  {online_check} Show online status",
-        #     id="pref-show_online_status",
-        #     classes="checkbox-item",
-        # )
-        # yield Button(
-        #     f"  {private_check} Private account",
-        #     id="pref-private_account",
-        #     classes="checkbox-item",
-        # )
-
         # Session / Sign out
-        yield Static("\n→ Session", classes="settings-section-header")
+        yield Static("── Session ──────────────────────────", classes="settings-section-header")
         yield Button("Sign Out", id="settings-signout", classes="danger")
 
     def on_mount(self) -> None:

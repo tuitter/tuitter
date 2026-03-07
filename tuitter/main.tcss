@@ -139,6 +139,15 @@ $follow-text-2: #aaffaa;
     background: $bg-dark;
 }
 
+#settings-display-name {
+    text-align: center;
+    width: 100%;
+    margin-left: 0;
+    margin-bottom: 1;
+    padding: 1 2;
+    background: $bg-dark;
+}
+
 /* Profile avatar box and content */
 .profile-avatar-container {
     width: 1fr;
@@ -245,8 +254,12 @@ TextArea#settings-bio {
    widgets used for username and bio in Settings. */
 Static.settings-field-selectable.vim-cursor,
 Static.settings-field-selectable.vim-row-focus,
+Static.settings-field.vim-cursor,
+Static.settings-field.vim-row-focus,
 Static#settings-username.vim-cursor,
 Static#settings-username.vim-row-focus,
+Static#settings-display-name.vim-cursor,
+Static#settings-display-name.vim-row-focus,
 TextArea#settings-bio.vim-cursor,
 TextArea#settings-bio.vim-row-focus,
 Container.settings-bio-container.vim-cursor,
@@ -1515,9 +1528,9 @@ Button.delete-profile-picture.danger:hover {
 }
 
 .settings-section-header {
-    color: $text-content;
+    color: $primary;
     text-style: bold;
-    margin-top: 2;
+    margin-top: 1;
     margin-bottom: 1;
 }
 
