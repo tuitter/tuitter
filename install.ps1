@@ -9,10 +9,10 @@
 
 $ErrorActionPreference = "Stop"
 
-$Repo   = "tuitter/tuitter"
-$Asset  = "tuitter-windows-x86_64.exe"
-$BinDir = "$env:LOCALAPPDATA\Microsoft\WindowsApps"
-$Dest   = "$BinDir\tuitter.exe"
+$Repo      = "tuitter/tuitter"
+$AssetName = "tuitter-windows-x86_64.exe"
+$BinDir    = "$env:LOCALAPPDATA\Microsoft\WindowsApps"
+$Dest      = "$BinDir\tuitter.exe"
 
 function Write-Green($msg)  { Write-Host $msg -ForegroundColor Green }
 function Write-Yellow($msg) { Write-Host $msg -ForegroundColor Yellow }
@@ -22,21 +22,23 @@ function Write-Bold($msg)   { Write-Host $msg -ForegroundColor Cyan }
 Write-Bold "tuitter installer for Windows"
 Write-Host ""
 
-# Find the asset across stable and pre-releases
-function Get-ReleaseAsset {
+# Find the download URL across stable and pre-releases
+function Get-DownloadUrl {
     # Try stable release first
     try {
-        $r = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
-        $a = $r.assets | Where-Object { $_.name -eq $Asset } | Select-Object -First 1
-        if ($a) { return $a }
+        $r = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+        foreach ($a in $r.assets) {
+            if ($a.name -eq $AssetName) { return [string]$a.browser_download_url }
+        }
     } catch {}
 
-    # Fall back to the most recent release (including pre-releases)
+    # Fall back to most recent release including pre-releases
     try {
-        $list = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" -UseBasicParsing
+        $list = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases"
         foreach ($r in $list) {
-            $a = $r.assets | Where-Object { $_.name -eq $Asset } | Select-Object -First 1
-            if ($a) { return $a }
+            foreach ($a in $r.assets) {
+                if ($a.name -eq $AssetName) { return [string]$a.browser_download_url }
+            }
         }
     } catch {}
 
@@ -44,12 +46,12 @@ function Get-ReleaseAsset {
 }
 
 Write-Green "Fetching release info..."
-$asset = Get-ReleaseAsset
+$downloadUrl = Get-DownloadUrl
 
-if ($asset) {
-    Write-Green "Downloading $Asset..."
+if ($downloadUrl) {
+    Write-Green "Downloading $AssetName..."
     New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $Dest -UseBasicParsing
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $Dest
     Write-Host ""
     Write-Green "tuitter installed to $Dest"
     if (-not ($env:PATH -split ';' | Where-Object { $_ -eq $BinDir })) {
@@ -65,7 +67,4 @@ Write-Red "No prebuilt binary found."
 Write-Host ""
 Write-Host "Download it manually from:"
 Write-Host "  https://github.com/$Repo/releases"
-Write-Host ""
-Write-Host "Or install via pip (requires Python 3.10+):"
-Write-Host "  pip install git+https://github.com/$Repo.git"
 exit 1
