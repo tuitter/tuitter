@@ -1793,8 +1793,9 @@ class Sidebar(VerticalScroll):
                 yield CommandItem(":ma", "mark all", classes="command-item")
             elif self.current_screen == "profile":
                 yield CommandItem(":f", "follow", classes="command-item")
-                # Allow liking/reposting directly from profile posts
+                # Allow liking/reposting/deleting directly from profile posts
                 yield CommandItem(":l", "like", classes="command-item")
+                yield CommandItem(":del", "delete post", classes="command-item")
                 # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
                 yield CommandItem("[Enter]", "comments", classes="command-item")
             elif self.current_screen == "settings":
@@ -2755,19 +2756,15 @@ class DeletePostDialog(ModalScreen):
         self._update_cursor()
 
     def key_h(self) -> None:
-        if not self.app.command_mode:
-            self.cursor_position = 0
+        self.cursor_position = 0
 
     def key_l(self) -> None:
-        if not self.app.command_mode:
-            self.cursor_position = 1
+        self.cursor_position = 1
 
     def key_escape(self) -> None:
         self.dismiss(False)
 
     def key_enter(self) -> None:
-        if self.app.command_mode:
-            return
         if self.cursor_position == 0:
             self._do_delete()
         else:
