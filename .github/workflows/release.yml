@@ -40,7 +40,7 @@ jobs:
           python -m pip install .
 
       - name: Build single-file executable
-        run: pyinstaller --onefile --name tuitter tuitter/main.py
+        run: pyinstaller tuitter.spec
 
       - name: Prepare artifact (Unix)
         if: runner.os != 'Windows'
