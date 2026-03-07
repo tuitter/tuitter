@@ -1827,6 +1827,48 @@ class Sidebar(VerticalScroll):
 # ───────── Modal Dialogs ─────────
 
 
+def image_to_braille_art(file_path: str, cols: int = 80) -> str:
+    """Convert an image to high-fidelity Unicode braille art.
+
+    Each braille character (U+2800–U+28FF) encodes a 2×4 dot grid,
+    giving 4× the resolution of plain ASCII at the same terminal width.
+    An adaptive per-image brightness threshold is used so the result
+    looks good regardless of the image's overall exposure.
+    """
+    from PIL import Image as _Image
+
+    img = _Image.open(file_path).convert("L")  # grayscale
+    aspect = img.height / img.width if img.width else 1
+    rows = max(1, int(cols * aspect * 0.5))
+    px_w, px_h = cols * 2, rows * 4
+    img = img.resize((px_w, px_h), _Image.LANCZOS)
+    pixels = img.load()
+
+    # Adaptive threshold: mean brightness of the resized image
+    total = sum(pixels[x, y] for y in range(px_h) for x in range(px_w))
+    threshold = total / (px_w * px_h)
+
+    # Braille Unicode dot-to-bit layout for a 2×4 block:
+    #   col=0 rows 0-2 → bits 0-2; row 3 → bit 6
+    #   col=1 rows 0-2 → bits 3-5; row 3 → bit 7
+    BIT = [[0, 1, 2, 6], [3, 4, 5, 7]]
+
+    lines = []
+    for row in range(rows):
+        line = ""
+        for col in range(cols):
+            code = 0
+            for dc in range(2):
+                for dr in range(4):
+                    px = col * 2 + dc
+                    py = row * 4 + dr
+                    if px < px_w and py < px_h and pixels[px, py] >= threshold:
+                        code |= (1 << BIT[dc][dr])
+            line += chr(0x2800 + code)
+        lines.append(line)
+    return "\n".join(lines)
+
+
 class NewPostDialog(ModalScreen):
     """Modal dialog for creating a new post."""
 
@@ -2065,44 +2107,7 @@ class NewPostDialog(ModalScreen):
                     return
 
                 try:
-                    # Convert image to ASCII art
-                    img = Image.open(file_path).convert("L")  # Convert to grayscale
-
-                    # Calculate new dimensions
-                    width = 60  # Desired width in characters
-                    aspect_ratio = img.height / img.width
-                    height = int(
-                        width * aspect_ratio * 0.5
-                    )  # Multiply by 0.5 since characters are taller than wide
-                    img = img.resize((width, height))
-
-                    # Convert pixels to ASCII
-                    pixels = img.load()
-                    # Use reversed density ramp so dark areas map to sparse chars
-                    ascii_chars = [
-                        " ",
-                        ".",
-                        ",",
-                        ":",
-                        ";",
-                        "+",
-                        "*",
-                        "?",
-                        "%",
-                        "S",
-                        "#",
-                        "@",
-                    ]
-                    ascii_chars = ascii_chars[::-1]  # Reverse the list
-                    ascii_lines = []
-                    for y in range(height):
-                        line = ""
-                        for x in range(width):
-                            pixel_value = pixels[x, y]
-                            char_index = (pixel_value * (len(ascii_chars) - 1)) // 255
-                            line += ascii_chars[char_index]
-                        ascii_lines.append(line)
-                    ascii_art = "\n".join(ascii_lines)
+                    ascii_art = image_to_braille_art(file_path, cols=80)
 
                     # Remove any existing photo attachment so we only keep one image
                     try:
@@ -2151,7 +2156,7 @@ class NewPostDialog(ModalScreen):
         try:
             # Create post with attachment data included in content
             post_data = {"content": content, "attachments": attachments}
-            new_post = api.create_post(json.dumps(post_data))
+            new_post = api.create_post(json.dumps(post_data, ensure_ascii=False))
 
             self._show_status("✓ Post published successfully!")
             try:
@@ -4564,42 +4569,9 @@ class SettingsPanel(VerticalScroll):
                 if not file_path:
                     return
 
-                # Inline PIL-based ASCII conversion (reused from NewPostDialog)
+                # Inline braille conversion for profile picture preview
                 try:
-                    img = Image.open(file_path).convert("L")
-                    # Desired character width
-                    width = 60
-                    aspect_ratio = img.height / img.width if img.width else 1
-                    height = int(width * aspect_ratio * 0.5)
-                    if height <= 0:
-                        height = 1
-                    img = img.resize((width, height))
-
-                    pixels = img.load()
-                    ascii_chars = [
-                        " ",
-                        ".",
-                        ",",
-                        ":",
-                        ";",
-                        "+",
-                        "*",
-                        "?",
-                        "%",
-                        "S",
-                        "#",
-                        "@",
-                    ]
-                    ascii_chars = ascii_chars[::-1]
-                    ascii_lines = []
-                    for y in range(height):
-                        line = ""
-                        for x in range(width):
-                            pixel_value = pixels[x, y]
-                            char_index = (pixel_value * (len(ascii_chars) - 1)) // 255
-                            line += ascii_chars[char_index]
-                        ascii_lines.append(line)
-                    ascii_art = "\n".join(ascii_lines)
+                    ascii_art = image_to_braille_art(file_path, cols=40)
 
                 except Exception:
                     # Fallback: notify and abort if conversion fails
