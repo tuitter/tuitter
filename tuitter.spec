@@ -9,7 +9,7 @@ block_cipher = None
 HERE = Path(SPECPATH)  # directory containing this .spec file
 
 a = Analysis(
-    [str(HERE / "tuitter" / "main.py")],
+    [str(HERE / "_entry.py")],
     pathex=[str(HERE)],
     binaries=[],
     datas=[
