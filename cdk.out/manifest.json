@@ -18,7 +18,7 @@
         "validateOnSynth": false,
         "assumeRoleArn": "arn:${AWS::Partition}:iam::390402531466:role/cdk-hnb659fds-deploy-role-390402531466-us-east-2",
         "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::390402531466:role/cdk-hnb659fds-cfn-exec-role-390402531466-us-east-2",
-        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-390402531466-us-east-2/5c976cc9bcd67ec2106a0aa8446999133bc3a4f569c573a9b0f1269fd2014a22.json",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-390402531466-us-east-2/086e682df5b024ef8f9cfc35d68e8fc073f60023a6dd7ad9b43d01ce7990ff26.json",
         "requiresBootstrapStackVersion": 6,
         "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
         "additionalDependencies": [
@@ -62,6 +62,12 @@
           {
             "type": "aws:cdk:logicalId",
             "data": "TuitterApiLambdaServiceRoleD9301BAA"
+          }
+        ],
+        "/TuitterNatFreeStack/TuitterApiLambda/ServiceRole/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TuitterApiLambdaServiceRoleDefaultPolicy38B9450E"
           }
         ],
         "/TuitterNatFreeStack/TuitterApiLambda/Resource": [

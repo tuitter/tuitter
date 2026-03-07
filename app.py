@@ -12,6 +12,7 @@ from aws_cdk import (
     aws_apigatewayv2 as apigwv2,
     aws_apigatewayv2_integrations as apigwv2_integrations,
     aws_cognito as cognito,
+    aws_secretsmanager as secretsmanager,
 )
 from constructs import Construct
 
@@ -93,6 +94,16 @@ class TuitterNatFreeStack(Stack):
         repo = ecr.Repository.from_repository_name(self, "TuitterRepo", ECR_REPO_NAME)
 
         # --------------------------
+        # Secrets Manager: reference pre-created secrets
+        # --------------------------
+        db_secret = secretsmanager.Secret.from_secret_name_v2(
+            self, "DbSecret", "tuitter/db-password"
+        )
+        r2_secret = secretsmanager.Secret.from_secret_name_v2(
+            self, "R2Secret", "tuitter/r2-credentials"
+        )
+
+        # --------------------------
         # Lambda (Image) outside VPC (default internet egress)
         # --------------------------
         fn = _lambda.DockerImageFunction(
@@ -109,26 +120,27 @@ class TuitterNatFreeStack(Stack):
             # egress by default and can reach Cognito and the public RDS
             # endpoint without requiring NAT or VPC endpoints.
             environment={
-                # Build DB URL at runtime (insecure example; change for prod):
+                # DB connection — DATABASE_URL constructed in backend from parts
                 "DB_HOST": db.db_instance_endpoint_address,
                 "DB_PORT": str(db.db_instance_endpoint_port),
                 "DB_NAME": "postgres",
                 "DB_USER": "postgres",
-                "DB_PASSWORD": "postgres",
-                # Provide a DATABASE_URL for apps that use that env var
-                "DATABASE_URL": (
-                    "postgresql://postgres:postgres@"
-                    + db.db_instance_endpoint_address
-                    + ":"
-                    + str(db.db_instance_endpoint_port)
-                    + "/postgres"
-                ),
+                "DB_PASSWORD": db_secret.secret_value.to_string(),
                 "COGNITO_REGION": REGION,
                 "COGNITO_USER_POOL_ID": user_pool.user_pool_id,
                 "COGNITO_APP_CLIENT_ID": EXISTING_APP_CLIENT_ID,
-                "GITHUB_WEBHOOK_SECRET": "SET_ME_LATER",
+                # Cloudflare R2 image storage
+                "R2_ACCOUNT_ID": "e9c7eba4bcbb730642c1e557f8144520",
+                "R2_ACCESS_KEY_ID": r2_secret.secret_value_from_json("access_key_id").to_string(),
+                "R2_SECRET_ACCESS_KEY": r2_secret.secret_value_from_json("secret_access_key").to_string(),
+                "R2_BUCKET_NAME": "tuitter-images",
+                "R2_PUBLIC_URL": "https://pub-77dc0778b6d6493c95fb6f8bb1cf56e2.r2.dev",
             },
         )
+
+        # Grant Lambda read access to each secret
+        db_secret.grant_read(fn)
+        r2_secret.grant_read(fn)
 
         # Make the DB publicly accessible and allow connections from anywhere
         # (aggressive / insecure but minimizes infra). This makes the DB

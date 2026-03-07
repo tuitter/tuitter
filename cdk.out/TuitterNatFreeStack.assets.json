@@ -1,16 +1,16 @@
 {
   "version": "52.0.0",
   "files": {
-    "5c976cc9bcd67ec2106a0aa8446999133bc3a4f569c573a9b0f1269fd2014a22": {
+    "086e682df5b024ef8f9cfc35d68e8fc073f60023a6dd7ad9b43d01ce7990ff26": {
       "displayName": "TuitterNatFreeStack Template",
       "source": {
         "path": "TuitterNatFreeStack.template.json",
         "packaging": "file"
       },
       "destinations": {
-        "390402531466-us-east-2-1c26bb33": {
+        "390402531466-us-east-2-18579ee8": {
           "bucketName": "cdk-hnb659fds-assets-390402531466-us-east-2",
-          "objectKey": "5c976cc9bcd67ec2106a0aa8446999133bc3a4f569c573a9b0f1269fd2014a22.json",
+          "objectKey": "086e682df5b024ef8f9cfc35d68e8fc073f60023a6dd7ad9b43d01ce7990ff26.json",
           "region": "us-east-2",
           "assumeRoleArn": "arn:${AWS::Partition}:iam::390402531466:role/cdk-hnb659fds-file-publishing-role-390402531466-us-east-2"
         }
