@@ -284,7 +284,7 @@ class MainUIScreen(Screen):
             yield TimelineScreen(id="screen-container")
 
         yield Static(
-            "[1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:n] New Post [:q] Quit",
+            "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:n] New Post [:q] Quit",
             id="app-footer",
             markup=False,
         )
@@ -1640,10 +1640,10 @@ class TopNav(Horizontal):
         yield Tabs(
             Tab("[1] Timeline", id="tab-timeline"),
             Tab("[2] Discover", id="tab-discover"),
-            Tab("[3] Notifs", id="tab-notifications"),
-            Tab("[4] Messages", id="tab-messages"),
-            Tab("[5] Settings", id="tab-settings"),
-            Tab("[6] Following", id="tab-following"),
+            Tab("[3] Following", id="tab-following"),
+            Tab("[4] Notifs", id="tab-notifications"),
+            Tab("[5] Messages", id="tab-messages"),
+            Tab("[6] Settings", id="tab-settings"),
             id="top-tabs",
             active=self._screen_to_tab_id(self.current),
         )
@@ -6524,12 +6524,12 @@ class Proj101App(App):
         Binding("0", "focus_main_content", "Main Content", show=False),
         Binding("1", "show_timeline", "Timeline", show=False),
         Binding("2", "show_discover", "Discover", show=False),
-        Binding("3", "show_notifications", "Notifications", show=False),
-        Binding("4", "show_messages", "Messages", show=False),
-        Binding("5", "show_settings", "Settings", show=False),
+        Binding("3", "show_following", "Following", show=False),
+        Binding("4", "show_notifications", "Notifications", show=False),
+        Binding("5", "show_messages", "Messages", show=False),
+        Binding("6", "show_settings", "Settings", show=False),
         Binding("p", "show_profile", "Profile", show=False),
         Binding("d", "show_drafts", "Drafts", show=False),
-        Binding("6", "show_following", "Following", show=False),
         Binding("shift+n", "focus_navigation", "Nav Focus", show=False),
         Binding("colon", "show_command_bar", "Command", show=False),
         # Vim-style navigation bindings
@@ -7005,31 +7005,31 @@ class Proj101App(App):
         screen_map = {
             "timeline": (
                 TimelineScreen,
-                "[1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:n] New Post [:q] Quit",
+                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:n] New Post [:q] Quit",
             ),
             "discover": (
                 DiscoverScreen,
-                "[1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [/] Search [:n] New Post [:q] Quit",
+                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [/] Search [:n] New Post [:q] Quit",
             ),
             "notifications": (
                 NotificationsScreen,
-                "[1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
+                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
             ),
             "messages": (
                 MessagesScreen,
-                "[0] Chat [6] Messages [1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:m] New Message [:q] Quit",
+                "[0] Chat [1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:m] New Message [:q] Quit",
             ),
             "profile": (
                 ProfileScreen,
-                "[1-5] Screens [d] Drafts [j/k] Navigate [:q] Quit",
+                "[1-6] Screens [d] Drafts [j/k] Navigate [:q] Quit",
             ),
             "settings": (
                 SettingsScreen,
-                "[1-5] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
+                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
             ),
             "user_profile": (
                 ProfileScreen,
-                "[1-5] Screens [p] Profile [d] Drafts [:m] Message [:q] Quit",
+                "[1-6] Screens [p] Profile [d] Drafts [:m] Message [:q] Quit",
             ),
             "following": (
                 FollowingScreen,
@@ -7037,7 +7037,7 @@ class Proj101App(App):
             ),
             "drafts": (
                 DraftsScreen,
-                "[1-5] Screens [p] Profile [j/k] Navigate [h/l] Select [Enter] Execute [:q] Quit",
+                "[1-6] Screens [p] Profile [j/k] Navigate [h/l] Select [Enter] Execute [:q] Quit",
             ),
         }
         if screen_name in screen_map:
@@ -7929,10 +7929,10 @@ class Proj101App(App):
                 screen_map = {
                     "1": "timeline",
                     "2": "discover",
-                    "3": "notifications",
-                    "4": "messages",
-                    "5": "settings",
-                    "6": "following",
+                    "3": "following",
+                    "4": "notifications",
+                    "5": "messages",
+                    "6": "settings",
                 }
                 if command in screen_map:
                     self.switch_screen(screen_map[command])
