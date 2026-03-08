@@ -4,7 +4,7 @@ import os
 import random
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields as dataclass_fields
 import logging
 import sys
 
@@ -16,6 +16,11 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from .auth_storage import load_tokens, save_tokens_full, get_username
 from .auth import refresh_tokens
+
+def _user_from_dict(data: dict) -> "User":
+    """Construct a User, silently dropping any keys the dataclass doesn't know."""
+    allowed = {f.name for f in dataclass_fields(User)}
+    return User(**{k: v for k, v in data.items() if k in allowed})
 
 # === lightweight data objects used by the UI ===
 from .data_models import Notification
@@ -72,6 +77,7 @@ class User:
     following: int
     posts_count: int
     ascii_pic: str = ""
+    pic_url: str = ""
     is_following: bool = False
 
 
@@ -129,6 +135,7 @@ class UserSettings:
     google_connected: Optional[bool] = False
     discord_connected: Optional[bool] = False
     ascii_pic: Optional[str] = ""
+    pic_url: Optional[str] = ""
 
 class APIInterface:
     def get_current_user(self) -> User: ...
@@ -314,7 +321,7 @@ class RealAPI(APIInterface):
 
     def get_current_user(self) -> User:
         data = self._get("/me")
-        return User(**data)
+        return _user_from_dict(data)
 
     def get_timeline(self, limit: int = 50) -> List[Post]:
         data = self._get("/timeline", params={"limit": limit})
@@ -437,10 +444,7 @@ class RealAPI(APIInterface):
             # Non-404 server error (e.g. 500 from missing follows table) —
             # retry without viewer so we still get real name/bio/ascii_pic.
             data = self._get(f"/users/{handle}")
-        # Strip any keys not in User dataclass to avoid TypeError
-        allowed = {f.name for f in __import__('dataclasses').fields(User)}
-        data = {k: v for k, v in data.items() if k in allowed}
-        return User(**data)
+        return _user_from_dict(data)
 
     def follow_user(self, handle: str) -> bool:
         """Follow a user. Returns True on success."""
@@ -461,12 +465,12 @@ class RealAPI(APIInterface):
     def get_followers(self, handle: str) -> List[User]:
         """Get list of users who follow handle."""
         data = self._get(f"/users/{handle}/followers")
-        return [User(**u) for u in data]
+        return [_user_from_dict(u) for u in data]
 
     def get_following(self, handle: str) -> List[User]:
         """Get list of users that handle follows."""
         data = self._get(f"/users/{handle}/following")
-        return [User(**u) for u in data]
+        return [_user_from_dict(u) for u in data]
 
     def get_following_feed(self, limit: int = 50) -> List[Post]:
         """Get posts from followed users."""
