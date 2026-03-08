@@ -2052,10 +2052,11 @@ NewPostDialog > #vim-hints {
     padding: 0 1;
 }
 
-DeletePostDialog > .vim-hints {
-    dock: bottom;
-    width: 100%;
-    text-align: center;
+#delete-post-wrapper {
+    width: auto;
+    height: auto;
+    layout: vertical;
+    align: center middle;
 }
 
 #delete-post-container {
@@ -2281,8 +2282,57 @@ Button#draft-button:hover {
     color: $text-primary;
 }
 
-/* Default dialog button styles */
-Button#cancel-button, Button#cancel-delete {
+#delete-post-wrapper > .vim-hints {
+    width: 70;
+    text-align: center;
+    color: $text-muted;
+    text-style: italic;
+    height: auto;
+    padding: 1 0 0 0;
+}
+
+/* Confirm button — unselected: dim red; selected: vivid red */
+DeletePostDialog Button#confirm-delete {
+    background: $danger-bg;
+    color: $danger-text;
+    border: solid $danger-border;
+    height: 5;
+}
+
+DeletePostDialog Button#confirm-delete.selected {
+    background: $dracula-red;
+    border: heavy $accent-red-hover;
+    color: $text-primary;
+}
+
+DeletePostDialog Button#confirm-delete:hover {
+    background: $dracula-red;
+    border: heavy $accent-red-hover;
+    color: $text-primary;
+}
+
+/* Cancel button — unselected: dim; selected: vivid cyan */
+DeletePostDialog Button#cancel-delete {
+    background: $bg-dark;
+    color: $text-muted;
+    border: solid $color-cyan;
+    height: 5;
+}
+
+DeletePostDialog Button#cancel-delete.selected {
+    background: $bg-highlight;
+    border: heavy $accent-cyan;
+    color: $text-primary;
+    text-style: bold;
+}
+
+DeletePostDialog Button#cancel-delete:hover {
+    background: $bg-highlight;
+    border: heavy $accent-cyan;
+    color: $text-primary;
+}
+
+
     background: $bg-dark;
     color: $text-primary;
     border: solid $color-cyan;
