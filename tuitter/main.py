@@ -4428,6 +4428,7 @@ class SettingsPanel(VerticalScroll):
     settings_loaded = reactive(False)
     _file_btn_idx: int = 0  # 0 = Upload, 1 = Remove
     _profile_pic_path: str = ""  # path to the locally-selected image file
+    _profile_pic_url: str = ""   # R2 URL of the saved profile picture
 
     def compose(self) -> ComposeResult:
         """Build settings content synchronously so items are real children
@@ -4526,12 +4527,12 @@ class SettingsPanel(VerticalScroll):
                     avatar.update(new_avatar)
                 except Exception:
                     pass
-                # Restore the saved local path so resize re-renders correctly
+                # Restore the saved R2 URL so resize re-renders at actual width
                 try:
-                    saved_path = getattr(latest, "pic_url", "") or ""
-                    if saved_path and __import__('os.path', fromlist=['isfile']).isfile(saved_path):
-                        self._profile_pic_path = saved_path
-                        self.call_after_refresh(self._render_profile_pic)
+                    saved_url = getattr(latest, "pic_url", "") or ""
+                    if saved_url:
+                        self._profile_pic_url = saved_url
+                        self.call_after_refresh(lambda u=saved_url: self._render_profile_pic_from_url(u))
                 except Exception:
                     pass
             except Exception:
@@ -4942,8 +4943,33 @@ class SettingsPanel(VerticalScroll):
 
     def on_resize(self) -> None:
         """Re-render profile picture preview when the terminal is resized."""
-        if getattr(self, "_profile_pic_path", ""):
+        url = getattr(self, "_profile_pic_url", "")
+        if url:
+            self.call_after_refresh(lambda u=url: self._render_profile_pic_from_url(u))
+        elif getattr(self, "_profile_pic_path", ""):
             self.call_after_refresh(self._render_profile_pic)
+
+    def _render_profile_pic_from_url(self, url: str) -> None:
+        """Re-render the profile picture from an R2 URL at the current terminal
+        width.  Mirrors PostItem._fill_image_placeholders exactly."""
+        if not url:
+            return
+        try:
+            try:
+                container = self.query_one(".profile-avatar-container")
+                w = container.size.width
+            except Exception:
+                w = self.size.width
+            cols = max(15, w - 4) if w > 10 else 40
+            art = _render_image_url(url, self.app, cols=cols)
+            try:
+                avatar = self.query_one("#profile-picture-display", Static)
+                from rich.text import Text
+                avatar.update(Text(art))
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def _update_file_btn_highlight(self) -> None:
         """Apply vim-cursor to the active button inside file-buttons-row."""
@@ -5197,10 +5223,16 @@ class SettingsPanel(VerticalScroll):
 
             # Apply pending ascii if present (allow empty string to clear).
             # Re-render from path first so we always save at current terminal width.
-            # Also store the local path as pic_url so future sessions can re-render.
+            # Also upload original image to R2 so future resize re-renders from URL.
             try:
                 if getattr(self, "_profile_pic_path", ""):
-                    settings.pic_url = self._profile_pic_path
+                    try:
+                        uploaded_url = api.upload_image(self._profile_pic_path)
+                        if uploaded_url:
+                            settings.pic_url = uploaded_url
+                            self._profile_pic_url = uploaded_url
+                    except Exception:
+                        pass
                     try:
                         container = self.query_one(".profile-avatar-container")
                         w = container.size.width
@@ -5417,11 +5449,11 @@ class ProfileView(VerticalScroll):
                 self._update_cursor()
             except Exception:
                 pass
-            # If the profile has a pic_url (local path), restore and re-render
+            # If the profile has a pic_url (R2 URL), re-render at actual terminal width
             try:
-                pic_path = self.profile.get("pic_url", "") or ""
-                if pic_path and __import__('os.path', fromlist=['isfile']).isfile(pic_path):
-                    self.call_after_refresh(lambda p=pic_path: self._render_avatar_from_path(p))
+                pic_url = self.profile.get("pic_url", "") or ""
+                if pic_url:
+                    self.call_after_refresh(lambda u=pic_url: self._render_avatar_from_url(u))
             except Exception:
                 pass
         except Exception:
@@ -5512,12 +5544,11 @@ class ProfileView(VerticalScroll):
             pass
 
     def _refresh_avatar_display(self) -> None:
-        """Re-draw the avatar at current width from local path if available,
+        """Re-draw the avatar at current width from R2 URL if available,
         otherwise fall back to stored ascii_pic string."""
-        pic_path = self.profile.get("pic_url", "") or ""
-        import os.path as _osp
-        if pic_path and _osp.isfile(pic_path):
-            self._render_avatar_from_path(pic_path)
+        pic_url = self.profile.get("pic_url", "") or ""
+        if pic_url:
+            self._render_avatar_from_url(pic_url)
             return
         try:
             avatar = self.query_one("#profile-picture-display", Static)
@@ -5529,10 +5560,10 @@ class ProfileView(VerticalScroll):
         except Exception:
             pass
 
-    def _render_avatar_from_path(self, path: str) -> None:
-        """Re-render the profile picture from a local file at the current terminal
-        width, using image_to_braille_art — identical to SettingsPanel._render_profile_pic."""
-        if not path:
+    def _render_avatar_from_url(self, url: str) -> None:
+        """Re-render the profile picture from an R2 URL at the current terminal
+        width.  Mirrors PostItem._fill_image_placeholders exactly."""
+        if not url:
             return
         try:
             try:
@@ -5541,10 +5572,11 @@ class ProfileView(VerticalScroll):
             except Exception:
                 w = self.size.width
             cols = max(15, w - 4) if w > 10 else 40
-            art = image_to_braille_art(path, cols=cols)
+            art = _render_image_url(url, self.app, cols=cols)
             try:
                 avatar = self.query_one("#profile-picture-display", Static)
-                avatar.update(art)
+                from rich.text import Text
+                avatar.update(Text(art))
             except Exception:
                 pass
         except Exception:
