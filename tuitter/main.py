@@ -5957,6 +5957,10 @@ class ProfilePanel(VerticalScroll):
                 self.last_g_time = now
 
 class ProfileScreen(Container):
+    def __init__(self, *children, username: str = "", **kwargs):
+        super().__init__(*children, **kwargs)
+        self.username = username
+
     def compose(self) -> ComposeResult:
         yield Sidebar(current="profile", id="sidebar")
         yield ProfilePanel(id="profile-panel")
@@ -7039,31 +7043,17 @@ class Proj101App(App):
                 self.switch_screen("profile", username=handle)
                 return
 
-            exists = False
+            # Authoritative existence check via the user profile endpoint
             try:
-                posts = api.get_user_posts(handle, limit=1)
-                if posts:
-                    exists = True
+                api.get_user_profile(handle)
             except Exception:
-                # Ignore errors here and try comments probe
-                posts = []
-
-            if not exists:
-                try:
-                    comments = api.get_user_comments(handle, limit=1)
-                    if comments:
-                        exists = True
-                except Exception:
-                    comments = []
-
-            if not exists:
                 try:
                     self.notify(f"No such user: @{handle}", severity="error")
                 except Exception:
                     pass
                 return
 
-            # User exists (best-effort): switch to profile with username context
+            # User exists: switch to their profile
             self.switch_screen("profile", username=handle)
             return
         except Exception:
