@@ -2720,20 +2720,20 @@ class DeletePostDialog(ModalScreen):
     def compose(self) -> ComposeResult:
         with Container(id="delete-post-wrapper"):
             with Container(id="delete-post-container"):
-            yield Static("Delete Post?", id="delete-post-title")
-            yield Static(
-                "Are you sure you want to delete this post? This cannot be undone.",
-                classes="dialog-message",
-            )
-            with Container(id="delete-post-buttons"):
-                confirm_btn = Button("\u2713 Yes, Delete", id="confirm-delete")
-                cancel_btn = Button("Cancel", id="cancel-delete")
-                if self.cursor_position == 0:
-                    confirm_btn.add_class("selected")
-                else:
-                    cancel_btn.add_class("selected")
-                yield confirm_btn
-                yield cancel_btn
+                yield Static("Delete Post?", id="delete-post-title")
+                yield Static(
+                    "Are you sure you want to delete this post? This cannot be undone.",
+                    classes="dialog-message",
+                )
+                with Container(id="delete-post-buttons"):
+                    confirm_btn = Button("\u2713 Yes, Delete", id="confirm-delete")
+                    cancel_btn = Button("Cancel", id="cancel-delete")
+                    if self.cursor_position == 0:
+                        confirm_btn.add_class("selected")
+                    else:
+                        cancel_btn.add_class("selected")
+                    yield confirm_btn
+                    yield cancel_btn
             yield Static(
                 "\\[h/l] select  |  \\[enter] confirm  |  \\[esc] cancel",
                 classes="vim-hints",
