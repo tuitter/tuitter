@@ -1609,7 +1609,7 @@ class NotificationItem(Static):
         if n.type == "repost":
             return f"🔁 @{n.actor} reposted your post  •  {t}\n   ↳ \"{preview}\""
         if n.type == "follow":
-            return f"👥 @{n.actor} started following you  •  {t}"
+            return f"@{n.actor} started following you  •  {t}"
         if n.type == "comment":
             return f"💬 @{n.actor} commented on your post  •  {t}\n   ↳ \"{preview}\""
         return f"🔵 @{n.actor}  •  {t}\n   ↳ \"{preview}\""
