@@ -18,6 +18,7 @@ class User:
     following: int
     posts_count: int
     ascii_pic: str = ""
+    pic_url: str = ""
 
 
 @dataclass
@@ -81,4 +82,5 @@ class UserSettings:
     google_connected: bool = False
     discord_connected: bool = False
     ascii_pic: str = ""
+    pic_url: str = ""
     updated_at: Optional[datetime] = None

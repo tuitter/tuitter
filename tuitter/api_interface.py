@@ -396,7 +396,7 @@ class RealAPI(APIInterface):
         settings_fields = {
             'user_id', 'email_notifications', 'show_online_status',
             'private_account', 'github_connected', 'gitlab_connected',
-            'google_connected', 'discord_connected', 'ascii_pic', 'updated_at'
+            'google_connected', 'discord_connected', 'ascii_pic', 'pic_url', 'updated_at'
         }
         filtered_data = {k: v for k, v in data.items() if k in settings_fields}
         return UserSettings(**filtered_data)

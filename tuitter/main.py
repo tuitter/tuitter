@@ -4428,6 +4428,7 @@ class SettingsPanel(VerticalScroll):
     settings_loaded = reactive(False)
     _file_btn_idx: int = 0  # 0 = Upload, 1 = Remove
     _profile_pic_path: str = ""  # path to the locally-selected image file
+    _profile_pic_url: str = ""   # R2 URL of the saved profile picture
 
     def compose(self) -> ComposeResult:
         """Build settings content synchronously so items are real children
@@ -4524,6 +4525,14 @@ class SettingsPanel(VerticalScroll):
                     if not new_avatar or (isinstance(new_avatar, str) and new_avatar.strip() == ""):
                         new_avatar = "No profile picture available"
                     avatar.update(new_avatar)
+                except Exception:
+                    pass
+                # If a saved pic URL exists, re-render at current terminal width
+                try:
+                    saved_url = getattr(latest, "pic_url", "") or ""
+                    if saved_url:
+                        self._profile_pic_url = saved_url
+                        self.call_after_refresh(lambda: self._render_profile_pic_from_url(self._profile_pic_url))
                 except Exception:
                     pass
             except Exception:
@@ -4933,9 +4942,35 @@ class SettingsPanel(VerticalScroll):
                 pass
 
     def on_resize(self) -> None:
-        """Re-render the profile picture preview when the terminal is resized."""
-        if getattr(self, "_profile_pic_path", ""):
+        """Re-render profile picture preview when the terminal is resized."""
+        # Prefer URL-based re-render (identical to PostItem); fall back to local path
+        url = getattr(self, "_profile_pic_url", "")
+        if url:
+            self.call_after_refresh(lambda: self._render_profile_pic_from_url(url))
+        elif getattr(self, "_profile_pic_path", ""):
             self.call_after_refresh(self._render_profile_pic)
+
+    def _render_profile_pic_from_url(self, url: str) -> None:
+        """Re-render the profile picture from an R2 URL at the current terminal
+        width.  Mirrors PostItem._fill_image_placeholders exactly."""
+        if not url:
+            return
+        try:
+            try:
+                container = self.query_one(".profile-avatar-container")
+                w = container.size.width
+            except Exception:
+                w = self.size.width
+            cols = max(15, w - 4) if w > 10 else 40
+            art = _render_image_url(url, self.app, cols=cols)
+            try:
+                avatar = self.query_one("#profile-picture-display", Static)
+                from rich.text import Text
+                avatar.update(Text(art))
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def _update_file_btn_highlight(self) -> None:
         """Apply vim-cursor to the active button inside file-buttons-row."""
@@ -5189,8 +5224,17 @@ class SettingsPanel(VerticalScroll):
 
             # Apply pending ascii if present (allow empty string to clear).
             # Re-render from path first so we always save at current terminal width.
+            # Also upload the original image to R2 so future resize can re-render from URL.
             try:
                 if getattr(self, "_profile_pic_path", ""):
+                    # Upload original image to R2 and store URL for dynamic resize
+                    try:
+                        uploaded_url = api.upload_image(self._profile_pic_path)
+                        if uploaded_url:
+                            settings.pic_url = uploaded_url
+                            self._profile_pic_url = uploaded_url
+                    except Exception:
+                        pass
                     try:
                         container = self.query_one(".profile-avatar-container")
                         w = container.size.width
@@ -5407,6 +5451,13 @@ class ProfileView(VerticalScroll):
                 self._update_cursor()
             except Exception:
                 pass
+            # If the profile has a pic_url, re-render avatar at actual terminal width
+            try:
+                pic_url = self.profile.get("pic_url", "") or ""
+                if pic_url:
+                    self.call_after_refresh(lambda u=pic_url: self._render_avatar_from_url(u))
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -5494,6 +5545,53 @@ class ProfileView(VerticalScroll):
         except Exception:
             pass
 
+    def _refresh_avatar_display(self) -> None:
+        """Re-draw the avatar at current width. Uses pic_url (URL-based re-render
+        like PostItem) when available, otherwise falls back to stored ascii_pic."""
+        pic_url = self.profile.get("pic_url", "") or ""
+        if pic_url:
+            self._render_avatar_from_url(pic_url)
+            return
+        try:
+            avatar = self.query_one("#profile-picture-display", Static)
+            text = self.profile.get("ascii_pic") or ""
+            if text.strip():
+                avatar.update(text)
+            else:
+                avatar.update("No profile picture available")
+        except Exception:
+            pass
+
+    def _render_avatar_from_url(self, url: str) -> None:
+        """Re-render the profile picture from an R2 URL at the current terminal
+        width.  Mirrors PostItem._fill_image_placeholders exactly."""
+        if not url:
+            return
+        try:
+            try:
+                container = self.query_one(".profile-avatar-container")
+                w = container.size.width
+            except Exception:
+                w = self.size.width
+            cols = max(15, w - 4) if w > 10 else 40
+            art = _render_image_url(url, self.app, cols=cols)
+            try:
+                avatar = self.query_one("#profile-picture-display", Static)
+                from rich.text import Text
+                avatar.update(Text(art))
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def on_resize(self) -> None:
+        """Refresh avatar display when the terminal is resized."""
+        pic_url = self.profile.get("pic_url", "") or ""
+        if pic_url:
+            self.call_after_refresh(lambda u=pic_url: self._render_avatar_from_url(u))
+        else:
+            self.call_after_refresh(self._refresh_avatar_display)
+
     def _check_scroll_load(self) -> None:
         """Check if we need to load more posts based on scroll position"""
         try:
@@ -5550,6 +5648,15 @@ class ProfileView(VerticalScroll):
                 rows.append([bio])
             except Exception:
                 rows.append([])
+
+        # Action buttons row (Follow / Message) — only present on other users' profiles
+        try:
+            btns_container = self.query_one(".profile-action-buttons", Container)
+            btn_widgets = list(btns_container.query(Button))
+            if btn_widgets:
+                rows.append(btn_widgets)
+        except Exception:
+            pass
 
         # Posts: each PostItem is its own row (single column)
         try:
@@ -5858,6 +5965,7 @@ class ProfilePanel(VerticalScroll):
                     "display_name": getattr(user_obj, "display_name", requested_username),
                     "bio": getattr(user_obj, "bio", ""),
                     "ascii_pic": getattr(user_obj, "ascii_pic", ""),
+                    "pic_url": getattr(user_obj, "pic_url", ""),
                     "followers": getattr(user_obj, "followers", 0),
                     "following": getattr(user_obj, "following", 0),
                     "posts_count": getattr(user_obj, "posts_count", 0),
@@ -5901,6 +6009,7 @@ class ProfilePanel(VerticalScroll):
             "display_name": getattr(user, "display_name", ""),
             "bio": getattr(settings, "bio", getattr(user, "bio", "")),
             "ascii_pic": getattr(settings, "ascii_pic", getattr(user, "ascii_pic", "")),
+            "pic_url": getattr(settings, "pic_url", getattr(user, "pic_url", "")),
             "followers": getattr(user, "followers", 0),
             "following": getattr(user, "following", 0),
             "posts_count": getattr(user, "posts_count", 0),

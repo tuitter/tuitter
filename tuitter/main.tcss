@@ -2446,6 +2446,15 @@ Button#confirm-delete:hover {
     overflow-x: hidden;
 }
 
+/* Profile action buttons (Follow / Unfollow / Message) vim focus states */
+Button.profile-action-btn.vim-cursor,
+Button.profile-action-btn.vim-row-focus {
+    background: $bg-highlight;
+    border: heavy $border-hover;
+    color: $text-primary;
+    text-style: bold;
+}
+
 /* Following Feed */
 #following-feed {
     width: 1fr;
