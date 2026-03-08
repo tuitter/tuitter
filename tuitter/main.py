@@ -5450,7 +5450,7 @@ class ProfileView(VerticalScroll):
                 pass
             try:
                 self.cursor_row = 0
-                self.cursor_col = 0
+                self.cursor_col = -1
                 self._update_cursor()
             except Exception:
                 pass
@@ -5688,6 +5688,16 @@ class ProfileView(VerticalScroll):
             try:
                 target = cols[col_idx]
                 target.add_class("vim-cursor")
+                # If this is the avatar widget, also mark its container
+                try:
+                    ident = getattr(target, "id", None)
+                    classes = getattr(target, "classes", []) or []
+                    if ident == "profile-picture-display" or "ascii-avatar" in classes:
+                        parent = getattr(target, "parent", None)
+                        if parent and "profile-avatar-container" in (getattr(parent, "classes", []) or []):
+                            parent.add_class("vim-cursor")
+                except Exception:
+                    pass
                 try:
                     self.scroll_to_widget(target, top=True)
                 except Exception:
