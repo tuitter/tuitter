@@ -2814,7 +2814,7 @@ class TimelineFeed(VerticalScroll):
         )
         self.border_title = "Main Timeline"
         yield Static(
-            f"timeline.home | {unread_count} new posts | line 1",
+            f"timeline.home | {len(self._all_posts)} posts | {unread_count} new",
             classes="panel-header",
             markup=False,
         )
@@ -3047,7 +3047,7 @@ class FollowingFeed(VerticalScroll):
         self._all_posts = list(posts)
         self._displayed_count = min(self._batch_size, len(self._all_posts))
         yield Static(
-            f"timeline.following | {len(self._all_posts)} posts | line 1",
+            f"timeline.following | {len(self._all_posts)} posts",
             classes="panel-header",
             markup=False,
         )
@@ -3238,22 +3238,22 @@ class DiscoverFeed(VerticalScroll):
     def compose(self) -> ComposeResult:
         self.border_title = "Discover"
 
-        # Search input at the top
-        yield Input(
-            placeholder="[/] Search posts, people, tags...",
-            classes="discover-search-input",
-            id="discover-search",
-        )
-
         # Fetch all posts once and cache them
         self._all_posts = api.get_discover_posts()
         self._filtered_posts = self._all_posts.copy()
         self._displayed_count = min(self._batch_size, len(self._filtered_posts))
 
         yield Static(
-            "discover.trending | explore posts | line 1",
+            f"discover.trending | {len(self._all_posts)} posts",
             classes="panel-header",
             markup=False,
+        )
+
+        # Search input below the header
+        yield Input(
+            placeholder="[/] Search posts, people, tags...",
+            classes="discover-search-input",
+            id="discover-search",
         )
 
         # Initially display only the first batch
@@ -3566,7 +3566,7 @@ class NotificationsFeed(VerticalScroll):
         unread_count = len([n for n in notifications if not n.read])
         self.border_title = "Notifications"
         yield Static(
-            f"notifications.all | {unread_count} unread | line 1",
+            f"notifications.inbox | {len(notifications)} total | {unread_count} unread",
             classes="panel-header",
         )
         for i, notif in enumerate(notifications):
@@ -6373,7 +6373,7 @@ class DraftsPanel(VerticalScroll):
             drafts = load_drafts()
 
         yield Static(
-            f"drafts.all | {len(drafts)} saved | line 1", classes="panel-header"
+            f"drafts.local | {len(drafts)} saved", classes="panel-header"
         )
 
         if not drafts:
@@ -6654,7 +6654,7 @@ class DraftsPanel(VerticalScroll):
             drafts = load_drafts()
 
         self.mount(
-            Static(f"drafts.all | {len(drafts)} saved | line 1", classes="panel-header")
+            Static(f"drafts.local | {len(drafts)} saved", classes="panel-header")
         )
 
         if not drafts:
@@ -7199,11 +7199,11 @@ class Proj101App(App):
         screen_map = {
             "timeline": (
                 TimelineScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:n] New Post [:q] Quit",
+                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
             ),
             "discover": (
                 DiscoverScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [/] Search [:n] New Post [:q] Quit",
+                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [/] Search [:q] Quit",
             ),
             "notifications": (
                 NotificationsScreen,
@@ -7211,7 +7211,7 @@ class Proj101App(App):
             ),
             "messages": (
                 MessagesScreen,
-                "[0] Chat [9] Convos [1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:m] New Message [:q] Quit",
+                "[0] Chat [9] Convos [1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
             ),
             "profile": (
                 ProfileScreen,
