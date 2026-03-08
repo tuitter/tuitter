@@ -2034,7 +2034,7 @@ Button.-error:hover {
 
 /* ========== NEW POST DIALOG STYLES ========== */
 
-NewPostDialog, DeleteDraftDialog, NewMessageDialog {
+NewPostDialog, DeleteDraftDialog, DeletePostDialog, NewMessageDialog {
     align: center middle;
 }
 
@@ -2062,6 +2062,8 @@ NewPostDialog > #vim-hints {
 
 DeletePostDialog {
     align: center middle;
+    width: 100%;
+    height: 100%;
 }
 
 #delete-post-title {
