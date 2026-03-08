@@ -1,5 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.widget import Widget
 from textual.containers import (
     Container,
     Horizontal,
@@ -749,11 +750,80 @@ class AuthScreen(Screen):
 
 
 # ───────── Comment Screen ─────────
+class CommentItem(Widget):
+    """A single comment widget with like/unlike functionality."""
+
+    liked_by_user = reactive(False)
+    likes = reactive(0)
+
+    def __init__(self, comment_data: dict, **kwargs):
+        super().__init__(**kwargs)
+        self.comment_id = comment_data.get("id")
+        self.author = comment_data.get("user", "unknown")
+        self.comment_text = comment_data.get("text", "")
+        ts = comment_data.get("timestamp") or comment_data.get("created_at") or datetime.now().isoformat()
+        try:
+            self._c_time = format_time_ago(datetime.fromisoformat(ts))
+        except Exception:
+            self._c_time = "just now"
+        # Set likes first (plain assignment, no watcher side-effect on 'likes' itself).
+        # Then set liked_by_user — its watcher increments likes, but we immediately
+        # overwrite with the real server value so the final number is always correct.
+        _likes = int(comment_data.get("likes", 0) or 0)
+        _liked = bool(comment_data.get("liked_by_user", False))
+        self.liked_by_user = _liked
+        self.likes = _likes  # overwrite whatever the watcher did
+
+    def _like_str(self) -> str:
+        heart = "❤️" if self.liked_by_user else "🤍"
+        return f"{heart} {self.likes}"
+
+    def compose(self):
+        with Horizontal(classes="comment-header"):
+            yield Static(f"@{self.author} • {self._c_time}", classes="comment-meta", markup=False)
+            yield Static(self._like_str(), classes="comment-like-badge", markup=False)
+        yield Static(self.comment_text, classes="comment-body", markup=False)
+
+    def on_mount(self) -> None:
+        self.styles.background = "#282A36"
+
+    def _render_content(self) -> None:
+        try:
+            self.query_one(".comment-like-badge", Static).update(self._like_str())
+        except Exception:
+            pass
+
+    def watch_liked_by_user(self, liked: bool) -> None:
+        """Mirror PostItem: adjust likes count and refresh the badge."""
+        if liked:
+            self.likes += 1
+        else:
+            self.likes = max(0, self.likes - 1)
+        self._render_content()
+
+    def toggle_like(self) -> None:
+        """Toggle like state optimistically (UI updates immediately; API is best-effort)."""
+        if not self.comment_id:
+            return
+        if self.liked_by_user:
+            # Fire API best-effort, then update UI regardless
+            try:
+                api.unlike_comment(self.comment_id)
+            except Exception:
+                logging.exception("[CommentItem] unlike_comment API call failed")
+            self.liked_by_user = False
+        else:
+            try:
+                api.like_comment(self.comment_id)
+            except Exception:
+                logging.exception("[CommentItem] like_comment API call failed")
+            self.liked_by_user = True
+
+
 class CommentFeed(VerticalScroll):
     """Comment feed modeled after DiscoverFeed"""
 
     cursor_position = reactive(0)  # 0 = post, 1 = input, 2+ = comments
-    scroll_y = reactive(0)  # Track scroll position
 
     def __init__(self, post, origin=None, **kwargs):
         super().__init__(**kwargs)
@@ -780,7 +850,6 @@ class CommentFeed(VerticalScroll):
 
         # Comments
         self.comments = api.get_comments(self.post.id)
-        logging.debug(f"[compose] Comments fetched: {self.comments}")
 
         # Sort newest first
         def _comment_ts(c):
@@ -792,33 +861,14 @@ class CommentFeed(VerticalScroll):
         self.comments = sorted(self.comments, key=_comment_ts, reverse=True)
 
         for i, c in enumerate(self.comments):
-            author = c.get("user", "unknown")
-            content = c.get("text", "")
-            timestamp = (
-                c.get("timestamp") or c.get("created_at") or datetime.now().isoformat()
-            )
-            try:
-                c_time = format_time_ago(datetime.fromisoformat(timestamp))
-            except Exception:
-                c_time = "just now"
-            comment = Static(
-                f"  @{author} • {c_time}\n  {content}\n",
+            yield CommentItem(
+                c,
                 classes="comment-thread-item comment-item",
                 id=f"comment-{i}",
-                markup=False,
             )
-            comment.styles.background = "#282A36"  # Force dark background
-            yield comment
 
     def on_mount(self) -> None:
-        """Watch cursor position for updates"""
         self.watch(self, "cursor_position", self._update_cursor)
-        self.watch(self, "scroll_y", self._check_scroll_load)
-
-    def _check_scroll_load(self) -> None:
-        """Check if we need to load more comments based on scroll position"""
-        # Not needed for comments but keeping pattern consistent
-        pass
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle comment submission"""
@@ -894,24 +944,11 @@ class CommentFeed(VerticalScroll):
 
             # Add new comments
             for i, c in enumerate(self.comments):
-                author = c.get("user", "unknown")
-                content = c.get("text", "")
-                timestamp = (
-                    c.get("timestamp")
-                    or c.get("created_at")
-                    or datetime.now().isoformat()
-                )
-                try:
-                    c_time = format_time_ago(datetime.fromisoformat(timestamp))
-                except Exception:
-                    c_time = "just now"
-                comment_widget = Static(
-                    f"  @{author} • {c_time}\n  {content}\n",
+                comment_widget = CommentItem(
+                    c,
                     classes="comment-thread-item comment-item",
                     id=f"comment-{i}",
-                    markup=False,
                 )
-                comment_widget.styles.background = "#282A36"  # Force dark background
                 self.mount(comment_widget)
 
             # Reset cursor position
@@ -930,6 +967,22 @@ class CommentFeed(VerticalScroll):
             comment_input.focus()
         except Exception:
             pass
+
+    def key_l(self) -> None:
+        """Like/unlike the currently selected comment with l key"""
+        if self.app.command_mode:
+            return
+        # Cursor must be on a comment (position >= 2)
+        if self.cursor_position < 2:
+            return
+        try:
+            items = self._get_navigable_items()
+            if self.cursor_position < len(items):
+                item = items[self.cursor_position]
+                if isinstance(item, CommentItem):
+                    item.toggle_like()
+        except Exception as e:
+            logging.warning(f"[CommentFeed] key_l error: {e}")
 
     def key_q(self) -> None:
         """Exit comment screen with q key"""
@@ -974,9 +1027,6 @@ class CommentFeed(VerticalScroll):
             comment_input.remove_class("vim-cursor")
             for item in comment_items:
                 item.remove_class("vim-cursor")
-                item.styles.background = (
-                    "#282A36"  # Reset to dark background, not empty
-                )
 
             if 0 <= self.cursor_position < len(items):
                 item = items[self.cursor_position]
@@ -1016,6 +1066,10 @@ class CommentPanel(Container):
 
     def compose(self) -> ComposeResult:
         yield CommentFeed(self.post, origin=self.origin, id="comment-feed")
+
+    def on_mount(self) -> None:
+        """Grab focus so key handlers (j/k/l/etc.) work immediately."""
+        self.call_after_refresh(self.focus)
 
     def on_blur(self) -> None:
         """When screen loses focus"""
@@ -1117,6 +1171,39 @@ class CommentPanel(Container):
         if self.app.command_mode:
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
+
+    def key_l(self) -> None:
+        """Like/unlike the selected comment."""
+        if self.app.command_mode:
+            return
+        f = self._feed()
+        if f and hasattr(f, "key_l"):
+            try:
+                f.key_l()
+            except Exception:
+                pass
+
+    def key_i(self) -> None:
+        """Focus comment input."""
+        if self.app.command_mode:
+            return
+        f = self._feed()
+        if f and hasattr(f, "key_i"):
+            try:
+                f.key_i()
+            except Exception:
+                pass
+
+    def key_q(self) -> None:
+        """Close the comment panel."""
+        if self.app.command_mode:
+            return
+        f = self._feed()
+        if f and hasattr(f, "key_q"):
+            try:
+                f.key_q()
+            except Exception:
+                pass
 
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and escape from input"""
@@ -8355,6 +8442,18 @@ class Proj101App(App):
                 # Note: explicit username-only commands are not supported.
                 # Only @ commands (e.g. :@username or :@) will open profiles.
                 elif command == "l":
+                    # If a comment panel is open and cursor is on a comment, like the comment instead.
+                    try:
+                        comment_panel = self.query_one("#comment-panel")
+                        feed = comment_panel.query_one("#comment-feed")
+                        pos = getattr(feed, "cursor_position", 0)
+                        if pos >= 2:  # 0=post, 1=input, 2+=comments
+                            feed.key_l()
+                            return
+                        # cursor_position < 2 → fall through to like the post shown in the panel
+                    except Exception:
+                        pass
+
                     # Like the currently focused post in timeline or discover
                     if self.current_screen_name == "timeline":
                         try:

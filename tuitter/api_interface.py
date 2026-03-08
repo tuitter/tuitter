@@ -115,10 +115,14 @@ class Conversation:
 
 
 class Comment:
-    def __init__(self, author: str, content: str, timestamp: datetime):
+    def __init__(self, id: int, author: str, content: str, timestamp: datetime,
+                 likes: int = 0, liked_by_user: bool = False):
+        self.id = id
         self.author = author
         self.content = content
         self.timestamp = timestamp
+        self.likes = likes
+        self.liked_by_user = liked_by_user
 
 
 @dataclass
@@ -161,6 +165,8 @@ class APIInterface:
     # comments
     def get_comments(self, post_id: int) -> List[Dict[str, Any]]: ...
     def add_comment(self, post_id: int, text: str) -> Dict[str, Any]: ...
+    def like_comment(self, comment_id: int) -> bool: ...
+    def unlike_comment(self, comment_id: int) -> bool: ...
     # follow / following
     def follow_user(self, handle: str) -> bool: ...
     def unfollow_user(self, handle: str) -> bool: ...
@@ -538,12 +544,20 @@ class RealAPI(APIInterface):
                 raise
 
     def get_comments(self, post_id: int) -> List[Dict[str, Any]]:
-        data = self._get(f"/posts/{post_id}/comments")
+        data = self._get(f"/posts/{post_id}/comments", params={"handle": self.handle})
         return data
 
     def add_comment(self, post_id: int, text: str) -> Dict[str, Any]:
         data = self._post(f"/posts/{post_id}/comments", json_payload={"text": text})
         return data
+
+    def like_comment(self, comment_id: int) -> bool:
+        self._post(f"/comments/{comment_id}/like")
+        return True
+
+    def unlike_comment(self, comment_id: int) -> bool:
+        self._delete(f"/comments/{comment_id}/like")
+        return True
 
     # --- conversion helpers ---
     def _convert_post(self, p: Dict[str, Any]) -> Dict[str, Any]:
