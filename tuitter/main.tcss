@@ -2445,3 +2445,26 @@ Button#confirm-delete:hover {
 .ascii-art {
     overflow-x: hidden;
 }
+
+/* Following Feed */
+#following-feed {
+    width: 1fr;
+    background: $bg-dark;
+    height: 1fr;
+    layout: vertical;
+    padding: 1 2;
+    overflow: auto;
+    border: round $color-lime;
+    border-title-align: center;
+    border-title-color: $color-lime;
+    border-title-style: bold;
+}
+
+.following-empty-msg {
+    width: 100%;
+    height: auto;
+    padding: 3 4;
+    color: $text-subtle;
+    text-align: center;
+    content-align: center middle;
+}

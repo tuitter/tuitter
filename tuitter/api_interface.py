@@ -72,6 +72,7 @@ class User:
     following: int
     posts_count: int
     ascii_pic: str = ""
+    is_following: bool = False
 
 
 @dataclass
@@ -153,7 +154,12 @@ class APIInterface:
     # comments
     def get_comments(self, post_id: int) -> List[Dict[str, Any]]: ...
     def add_comment(self, post_id: int, text: str) -> Dict[str, Any]: ...
-
+    # follow / following
+    def follow_user(self, handle: str) -> bool: ...
+    def unfollow_user(self, handle: str) -> bool: ...
+    def get_followers(self, handle: str) -> List['User']: ...
+    def get_following(self, handle: str) -> List['User']: ...
+    def get_following_feed(self, limit: int = 50) -> List[Post]: ...
 
 
 class RealAPI(APIInterface):
@@ -418,9 +424,40 @@ class RealAPI(APIInterface):
 
         Raises requests.HTTPError on non-2xx (404 will be raised by _request).
         """
-        data = self._get(f"/users/{handle}")
+        data = self._get(f"/users/{handle}", params={"viewer": self.handle})
         # Backend returns fields compatible with User dataclass
         return User(**data)
+
+    def follow_user(self, handle: str) -> bool:
+        """Follow a user. Returns True on success."""
+        try:
+            self._post(f"/users/{handle}/follow", params={"caller": self.handle})
+            return True
+        except Exception:
+            return False
+
+    def unfollow_user(self, handle: str) -> bool:
+        """Unfollow a user. Returns True on success."""
+        try:
+            self._delete(f"/users/{handle}/follow", params={"caller": self.handle})
+            return True
+        except Exception:
+            return False
+
+    def get_followers(self, handle: str) -> List[User]:
+        """Get list of users who follow handle."""
+        data = self._get(f"/users/{handle}/followers")
+        return [User(**u) for u in data]
+
+    def get_following(self, handle: str) -> List[User]:
+        """Get list of users that handle follows."""
+        data = self._get(f"/users/{handle}/following")
+        return [User(**u) for u in data]
+
+    def get_following_feed(self, limit: int = 50) -> List[Post]:
+        """Get posts from followed users."""
+        data = self._get("/timeline/following", params={"handle": self.handle, "limit": limit})
+        return [Post(**self._convert_post(p)) for p in data]
 
     def create_post(self, content: str) -> Post:
         # Check if content is JSON string containing attachments

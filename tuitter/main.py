@@ -276,6 +276,8 @@ class MainUIScreen(Screen):
             yield MessagesScreen(id="screen-container")
         elif self.starting_view == "settings":
             yield SettingsScreen(id="screen-container")
+        elif self.starting_view == "following":
+            yield FollowingScreen(id="screen-container")
         elif self.starting_view == "drafts":
             yield DraftsScreen(id="screen-container")
         else:
@@ -1641,6 +1643,7 @@ class TopNav(Horizontal):
             Tab("[3] Notifs", id="tab-notifications"),
             Tab("[4] Messages", id="tab-messages"),
             Tab("[5] Settings", id="tab-settings"),
+            Tab("[6] Following", id="tab-following"),
             id="top-tabs",
             active=self._screen_to_tab_id(self.current),
         )
@@ -1652,6 +1655,7 @@ class TopNav(Horizontal):
             "tab-notifications": "notifications",
             "tab-messages": "messages",
             "tab-settings": "settings",
+            "tab-following": "following",
         }.get(tab_id, "timeline")
 
     def _screen_to_tab_id(self, screen_name: str) -> str:
@@ -1661,6 +1665,7 @@ class TopNav(Horizontal):
             "notifications": "tab-notifications",
             "messages": "tab-messages",
             "settings": "tab-settings",
+            "following": "tab-following",
         }.get(screen_name, "tab-timeline")
 
     def on_mount(self) -> None:
@@ -1793,10 +1798,15 @@ class Sidebar(VerticalScroll):
                 yield CommandItem(":ma", "mark all", classes="command-item")
             elif self.current_screen == "profile":
                 yield CommandItem(":f", "follow", classes="command-item")
+                yield CommandItem(":uf", "unfollow", classes="command-item")
                 # Allow liking/reposting/deleting directly from profile posts
                 yield CommandItem(":l", "like", classes="command-item")
                 yield CommandItem(":del", "delete post", classes="command-item")
                 # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
+                yield CommandItem("[Enter]", "comments", classes="command-item")
+            elif self.current_screen == "following":
+                yield CommandItem(":n", "new post", classes="command-item")
+                yield CommandItem(":l", "like", classes="command-item")
                 yield CommandItem("[Enter]", "comments", classes="command-item")
             elif self.current_screen == "settings":
                 yield CommandItem(":w", "save", classes="command-item")
@@ -3042,6 +3052,131 @@ class TimelineScreen(Container):
     def compose(self) -> ComposeResult:
         yield Sidebar(current="timeline", id="sidebar")
         yield TimelineFeed(id="timeline-feed")
+
+
+class FollowingFeed(VerticalScroll):
+    cursor_position = reactive(0)
+    scroll_y = reactive(0)
+    _all_posts = []
+    _displayed_count = 20
+    _batch_size = 20
+    _loading_more = False
+
+    def key_enter(self) -> None:
+        if self.app.command_mode:
+            return
+        self.open_comment_screen()
+
+    def open_comment_screen(self):
+        items = list(self.query(".post-item"))
+        if 0 <= self.cursor_position < len(items):
+            post_item = items[self.cursor_position]
+            post = getattr(post_item, "post", None)
+            if post:
+                try:
+                    self.app.action_open_comment_panel(post, origin=post_item)
+                except Exception:
+                    self.app.push_screen(CommentScreen(post, origin=post_item))
+
+    def compose(self) -> ComposeResult:
+        self.border_title = "Following"
+        try:
+            posts = api.get_following_feed()
+        except Exception:
+            posts = []
+        self._all_posts = list(posts)
+        self._displayed_count = min(self._batch_size, len(self._all_posts))
+        yield Static(
+            f"timeline.following | {len(self._all_posts)} posts | line 1",
+            classes="panel-header",
+            markup=False,
+        )
+        if not self._all_posts:
+            yield Static(
+                "No posts yet.\n\nFollow some users to see their posts here.\n\nUse :@username to view a profile, then press :f to follow.",
+                classes="following-empty-msg",
+                markup=False,
+            )
+            return
+        for i, post in enumerate(self._all_posts[: self._displayed_count]):
+            post_item = PostItem(post, classes="post-item", id=f"post-fol-{i}")
+            if i == 0:
+                post_item.add_class("vim-cursor")
+            yield post_item
+
+    def on_mount(self) -> None:
+        self.watch(self, "cursor_position", self._update_cursor)
+        self.watch(self, "scroll_y", self._check_scroll_load)
+
+    def on_scroll(self, event) -> None:
+        try:
+            self.scroll_y = self.scroll_offset.y
+        except Exception:
+            pass
+
+    def _check_scroll_load(self) -> None:
+        try:
+            virtual_size = self.virtual_size.height
+            container_size = self.container_size.height
+            if virtual_size > 0 and self.scroll_y + container_size >= virtual_size - 100:
+                self._load_more_posts()
+        except Exception:
+            pass
+
+    def _load_more_posts(self) -> None:
+        if self._loading_more or self._displayed_count >= len(self._all_posts):
+            return
+        self._loading_more = True
+        try:
+            old_count = self._displayed_count
+            self._displayed_count = min(self._displayed_count + self._batch_size, len(self._all_posts))
+            for i in range(old_count, self._displayed_count):
+                post = self._all_posts[i]
+                post_item = PostItem(post, classes="post-item", id=f"post-fol-{i}")
+                self.mount(post_item)
+        except Exception:
+            pass
+        finally:
+            self._loading_more = False
+
+    def _update_cursor(self, cursor: int) -> None:
+        try:
+            items = list(self.query(".post-item"))
+            for i, item in enumerate(items):
+                if i == cursor:
+                    item.add_class("vim-cursor")
+                else:
+                    item.remove_class("vim-cursor")
+        except Exception:
+            pass
+
+    def key_j(self) -> None:
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        if self.cursor_position < len(items) - 1:
+            self.cursor_position += 1
+            try:
+                items[self.cursor_position].scroll_visible()
+            except Exception:
+                pass
+
+    def key_k(self) -> None:
+        if self.app.command_mode:
+            return
+        if self.cursor_position > 0:
+            self.cursor_position -= 1
+            try:
+                items = list(self.query(".post-item"))
+                items[self.cursor_position].scroll_visible()
+            except Exception:
+                pass
+
+
+class FollowingScreen(Container):
+    def compose(self) -> ComposeResult:
+        yield Sidebar(current="following", id="sidebar")
+        yield FollowingFeed(id="following-feed")
 
 
 class DiscoverFeed(VerticalScroll):
@@ -5276,6 +5411,69 @@ class ProfileView(VerticalScroll):
             pass
 
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle Follow/Unfollow/Message button presses on another user's profile."""
+        btn_id = event.button.id
+        target = self.profile.get("username") or self.profile.get("handle", "")
+        if btn_id == "follow-user-btn":
+            currently_following = "Unfollow" in str(event.button.label)
+            try:
+                if currently_following:
+                    ok = api.unfollow_user(target)
+                    if ok:
+                        event.button.label = "\U0001f465 Follow"
+                        self.profile["is_following"] = False
+                        # Decrement followers count in stats
+                        try:
+                            old = int(self.profile.get("followers", 0))
+                            self.profile["followers"] = max(0, old - 1)
+                            for stat in self.query(".profile-stat-item"):
+                                if "Follower" in str(stat.renderable):
+                                    stat.update(f"{self.profile['followers']}\nFollowers")
+                        except Exception:
+                            pass
+                        try:
+                            self.app.notify(f"Unfollowed @{target}.", severity="success")
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            self.app.notify(f"Failed to unfollow @{target}.", severity="error")
+                        except Exception:
+                            pass
+                else:
+                    ok = api.follow_user(target)
+                    if ok:
+                        event.button.label = "\U0001f464 Unfollow"
+                        self.profile["is_following"] = True
+                        try:
+                            old = int(self.profile.get("followers", 0))
+                            self.profile["followers"] = old + 1
+                            for stat in self.query(".profile-stat-item"):
+                                if "Follower" in str(stat.renderable):
+                                    stat.update(f"{self.profile['followers']}\nFollowers")
+                        except Exception:
+                            pass
+                        try:
+                            self.app.notify(f"Now following @{target}!", severity="success")
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            self.app.notify(f"Failed to follow @{target}.", severity="error")
+                        except Exception:
+                            pass
+            except Exception as e:
+                try:
+                    self.app.notify(f"Error: {e}", severity="error")
+                except Exception:
+                    pass
+        elif btn_id == "message-user-btn":
+            try:
+                self.app.action_open_dm(target)
+            except Exception:
+                pass
+
     def _clear_tab_content(self):
         # Remove previously-mounted PostItem widgets from this ProfileView
         try:
@@ -5653,6 +5851,8 @@ class ProfilePanel(VerticalScroll):
             # Prefer authoritative backend lookup for the requested user.
             try:
                 user_obj = api.get_user_profile(requested_username)
+                own_username = get_username()
+                is_own = own_username and own_username.lower() == requested_username.lower()
                 profile = {
                     "username": getattr(user_obj, "username", getattr(user_obj, "handle", requested_username)),
                     "display_name": getattr(user_obj, "display_name", requested_username),
@@ -5661,8 +5861,9 @@ class ProfilePanel(VerticalScroll):
                     "followers": getattr(user_obj, "followers", 0),
                     "following": getattr(user_obj, "following", 0),
                     "posts_count": getattr(user_obj, "posts_count", 0),
+                    "is_following": getattr(user_obj, "is_following", False),
                 }
-                yield ProfileView(profile=profile, id="profile-view")
+                yield ProfileView(profile=profile, id="profile-view", actions=(not is_own))
                 return
             except Exception as e:
                 # If user not found or API failure, notify and fall back to local minimal profile
@@ -6328,7 +6529,7 @@ class Proj101App(App):
         Binding("5", "show_settings", "Settings", show=False),
         Binding("p", "show_profile", "Profile", show=False),
         Binding("d", "show_drafts", "Drafts", show=False),
-        Binding("6", "focus_messages", "Messages List", show=False),
+        Binding("6", "show_following", "Following", show=False),
         Binding("shift+n", "focus_navigation", "Nav Focus", show=False),
         Binding("colon", "show_command_bar", "Command", show=False),
         # Vim-style navigation bindings
@@ -6830,6 +7031,10 @@ class Proj101App(App):
                 ProfileScreen,
                 "[1-5] Screens [p] Profile [d] Drafts [:m] Message [:q] Quit",
             ),
+            "following": (
+                FollowingScreen,
+                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
+            ),
             "drafts": (
                 DraftsScreen,
                 "[1-5] Screens [p] Profile [j/k] Navigate [h/l] Select [Enter] Execute [:q] Quit",
@@ -6950,6 +7155,7 @@ class Proj101App(App):
                 "messages": "#chat",
                 "profile": "#profile-panel",
                 "settings": "#settings-panel",
+                "following": "#following-feed",
                 "drafts": "#drafts-panel",
                 # Backwards-compat: treat any legacy 'user_profile' key as profile panel
                 "user_profile": "#profile-panel",
@@ -7013,6 +7219,9 @@ class Proj101App(App):
 
     def action_show_settings(self) -> None:
         self.switch_screen("settings")
+
+    def action_show_following(self) -> None:
+        self.switch_screen("following")
 
     def action_show_profile(self) -> None:
         """Show the user's own profile screen."""
@@ -7109,6 +7318,8 @@ class Proj101App(App):
                 target_id = "#profile-panel"
             elif self.current_screen_name == "user_profile":
                 target_id = "#user-profile-panel"
+            elif self.current_screen_name == "following":
+                target_id = "#following-feed"
 
             if target_id:
                 panel = self.query_one(target_id)
@@ -7721,6 +7932,7 @@ class Proj101App(App):
                     "3": "notifications",
                     "4": "messages",
                     "5": "settings",
+                    "6": "following",
                 }
                 if command in screen_map:
                     self.switch_screen(screen_map[command])
@@ -8440,6 +8652,70 @@ class Proj101App(App):
                             self.notify("You can only delete your own posts.", severity="warning")
                     else:
                         self.notify("No post selected.", severity="warning")
+
+                elif command in ("f", "follow"):
+                    # Follow the user currently displayed in the profile
+                    target_handle = None
+                    try:
+                        for view_id in ("#profile-view", "#user-profile-view"):
+                            try:
+                                pv = self.query_one(view_id, ProfileView)
+                                target_handle = pv.profile.get("username") or pv.profile.get("handle")
+                                break
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    if target_handle:
+                        own = (get_username() or "").lower()
+                        if target_handle.lower() == own:
+                            self.notify("Cannot follow yourself.", severity="warning")
+                        else:
+                            try:
+                                ok = api.follow_user(target_handle)
+                                if ok:
+                                    self.notify(f"Now following @{target_handle}!", severity="success")
+                                    try:
+                                        btn = self.query_one("#follow-user-btn", Button)
+                                        btn.label = "\U0001f464 Unfollow"
+                                    except Exception:
+                                        pass
+                                else:
+                                    self.notify(f"Failed to follow @{target_handle}.", severity="error")
+                            except Exception as e:
+                                self.notify(f"Failed to follow: {e}", severity="error")
+                    else:
+                        self.notify("Navigate to a profile first. (:@username)", severity="warning")
+
+                elif command in ("uf", "unfollow"):
+                    # Unfollow the user currently displayed in the profile
+                    target_handle = None
+                    try:
+                        for view_id in ("#profile-view", "#user-profile-view"):
+                            try:
+                                pv = self.query_one(view_id, ProfileView)
+                                target_handle = pv.profile.get("username") or pv.profile.get("handle")
+                                break
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    if target_handle:
+                        try:
+                            ok = api.unfollow_user(target_handle)
+                            if ok:
+                                self.notify(f"Unfollowed @{target_handle}.", severity="success")
+                                try:
+                                    btn = self.query_one("#follow-user-btn", Button)
+                                    btn.label = "\U0001f465 Follow"
+                                except Exception:
+                                    pass
+                            else:
+                                self.notify(f"Failed to unfollow @{target_handle}.", severity="error")
+                        except Exception as e:
+                            self.notify(f"Failed to unfollow: {e}", severity="error")
+                    else:
+                        self.notify("Navigate to a profile first.", severity="warning")
 
                 elif command.startswith("o") and len(command) > 1:
                     try:
