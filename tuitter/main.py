@@ -1448,6 +1448,26 @@ class PostItem(Static):
         if self.has_ascii_art:
             self.call_after_refresh(self._fill_image_placeholders)
 
+    def on_mouse_enter(self) -> None:
+        """Highlight post on mouse hover."""
+        self.add_class("hovered")
+
+    def on_mouse_move(self, event) -> None:
+        """Keep hover active even when mouse is over child widgets."""
+        event.stop()  # Don't let this bubble to the feed
+        if not self.has_class("hovered"):
+            self.add_class("hovered")
+            try:
+                for sibling in self.parent.query(".post-item.hovered"):
+                    if sibling is not self:
+                        sibling.remove_class("hovered")
+            except Exception:
+                pass
+
+    def on_mouse_leave(self) -> None:
+        """Remove highlight when mouse leaves post."""
+        self.remove_class("hovered")
+
     def _fill_image_placeholders(self) -> None:
         """Render image_url attachments using the PostItem's actual column width."""
         from rich.text import Text
@@ -2811,6 +2831,11 @@ class TimelineFeed(VerticalScroll):
     _batch_size = 20  # Number of posts to load at a time
     _loading_more = False  # Flag to prevent multiple simultaneous loads
 
+    def on_mouse_move(self) -> None:
+        """Mouse is in the feed but not over a post — clear all hover highlights."""
+        for item in self.query(".post-item.hovered"):
+            item.remove_class("hovered")
+
     def key_enter(self) -> None:
         """Open comment screen for focused post"""
         if self.app.command_mode:
@@ -3056,6 +3081,11 @@ class FollowingFeed(VerticalScroll):
     _batch_size = 20
     _loading_more = False
 
+    def on_mouse_move(self) -> None:
+        """Mouse is in the feed but not over a post — clear all hover highlights."""
+        for item in self.query(".post-item.hovered"):
+            item.remove_class("hovered")
+
     def key_enter(self) -> None:
         if self.app.command_mode:
             return
@@ -3240,6 +3270,11 @@ class DiscoverFeed(VerticalScroll):
     _displayed_count = 20  # Number of posts currently displayed
     _batch_size = 20  # Number of posts to load at a time
     _loading_more = False  # Flag to prevent multiple simultaneous loads
+
+    def on_mouse_move(self) -> None:
+        """Mouse is in the feed but not over a post — clear all hover highlights."""
+        for item in self.query(".post-item.hovered"):
+            item.remove_class("hovered")
 
     def key_enter(self) -> None:
         """Open comment screen when pressing enter on a post"""

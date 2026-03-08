@@ -1231,8 +1231,22 @@ Button.delete-profile-picture.file-btn-danger:hover {
     border: solid $border-default;
 }
 
-.post-item:hover {
+.post-item:hover, .post-item.hovered {
+    background: $bg-hover;
     border: solid $border-hover;
+    color: $text-primary;
+}
+
+.post-item.hovered .post-text {
+    color: $text-primary;
+}
+
+.post-item.hovered .post-stats {
+    color: $text-muted;
+}
+
+.post-item.hovered .post-author {
+    color: $text-primary;
 }
 
 /* Ensure rendered post text and the post editor textarea share padding and color */
