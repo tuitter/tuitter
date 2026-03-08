@@ -281,10 +281,14 @@ class RealAPI(APIInterface):
                         restored = self.try_restore_session()
                     if restored:
                         logger.info("try_restore_session succeeded; retrying original request")
-                        if method.upper() == "GET":
+                        if m == "GET":
                             resp = self.session.get(url, params=params, timeout=self.timeout)
-                        else:
+                        elif m == "POST":
                             resp = self.session.post(url, params=params, json=json_payload, timeout=self.timeout)
+                        elif m == "PATCH":
+                            resp = self.session.patch(url, params=params, json=json_payload, timeout=self.timeout)
+                        else:
+                            resp = self.session.request(m, url, params=params, json=json_payload, timeout=self.timeout)
                     else:
                         logger.debug("try_restore_session returned False; not retrying")
                 except Exception:
@@ -448,19 +452,13 @@ class RealAPI(APIInterface):
 
     def follow_user(self, handle: str) -> bool:
         """Follow a user. Returns True on success."""
-        try:
-            self._post(f"/users/{handle}/follow", params={"caller": self.handle})
-            return True
-        except Exception:
-            return False
+        self._post(f"/users/{handle}/follow", params={"caller": self.handle})
+        return True
 
     def unfollow_user(self, handle: str) -> bool:
         """Unfollow a user. Returns True on success."""
-        try:
-            self._delete(f"/users/{handle}/follow", params={"caller": self.handle})
-            return True
-        except Exception:
-            return False
+        self._delete(f"/users/{handle}/follow", params={"caller": self.handle})
+        return True
 
     def get_followers(self, handle: str) -> List[User]:
         """Get list of users who follow handle."""

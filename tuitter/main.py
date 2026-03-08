@@ -4260,17 +4260,22 @@ class MessagesScreen(Container):
         yield Sidebar(current="messages", id="sidebar")
         yield ConversationsList(id="conversations")
 
+        # Resolve the target username — __init__ sets dm_username, but switch_screen
+        # instantiates without kwargs and then does setattr(screen, 'username', value).
+        dm_target = self.dm_username or getattr(self, "username", None)
+
         # If a specific username is provided, open chat with them
-        if self.dm_username:
+        if dm_target:
+            self.dm_username = dm_target  # normalise so on_mount can use it too
             # Get or create conversation with this user
             try:
-                conv = api.get_or_create_dm(self.dm_username)
+                conv = api.get_or_create_dm(dm_target)
                 yield ChatView(
-                    conversation_id=conv.id, username=self.dm_username, id="chat"
+                    conversation_id=conv.id, username=dm_target, id="chat"
                 )
             except Exception:
                 # Fallback if API call fails
-                yield ChatView(conversation_id=0, username=self.dm_username, id="chat")
+                yield ChatView(conversation_id=0, username=dm_target, id="chat")
         else:
             yield ChatView(id="chat")
 
