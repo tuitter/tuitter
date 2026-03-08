@@ -7482,16 +7482,20 @@ class Proj101App(App):
                 panel.add_class("vim-mode-active")
                 panel.focus()
 
-                # Special-case for messages: move cursor to input (bottom)
+                # Special-case for messages: move cursor to last message on first focus,
+                # keep existing cursor position on subsequent focuses.
                 try:
                     if self.current_screen_name == "messages" and target_id == "#chat":
-                        def _focus_chat_input():
+                        def _focus_chat():
                             try:
                                 chat = self.query_one("#chat", ChatView)
                                 msgs = list(chat.query(".chat-message"))
-                                # position after last message selects the input
-                                chat.cursor_position = len(msgs)
-                                # ensure chat retains focus so vim navigation works
+                                first_focus = not getattr(chat, "_chat_ever_focused", False)
+                                if first_focus and msgs:
+                                    # Land on the last message (not the input)
+                                    chat.cursor_position = len(msgs) - 1
+                                    chat._chat_ever_focused = True
+                                # Always re-focus the widget so vim keys work
                                 try:
                                     chat.focus()
                                 except Exception:
@@ -7499,14 +7503,13 @@ class Proj101App(App):
                             except Exception:
                                 pass
 
-                        # schedule after refresh so messages are present
                         try:
-                            self.call_after_refresh(_focus_chat_input)
+                            self.call_after_refresh(_focus_chat)
                         except Exception:
                             try:
-                                self.set_timer(0.02, _focus_chat_input)
+                                self.set_timer(0.02, _focus_chat)
                             except Exception:
-                                _focus_chat_input()
+                                _focus_chat()
                 except Exception:
                     pass
 
