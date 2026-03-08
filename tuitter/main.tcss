@@ -2052,6 +2052,12 @@ NewPostDialog > #vim-hints {
     padding: 0 1;
 }
 
+DeletePostDialog > .vim-hints {
+    dock: bottom;
+    width: 100%;
+    text-align: center;
+}
+
 #delete-post-container {
     width: 70;
     height: auto;

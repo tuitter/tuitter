@@ -2718,7 +2718,7 @@ class DeletePostDialog(ModalScreen):
         self.cursor_position = 0
 
     def compose(self) -> ComposeResult:
-        with Container(id="dialog-container"):
+        with Container(id="delete-post-container"):
             yield Static("Delete Post?", id="delete-post-title")
             yield Static(
                 "Are you sure you want to delete this post? This cannot be undone.",
