@@ -4968,11 +4968,6 @@ class SettingsPanel(VerticalScroll):
                 w = self.size.width - 10
             cols = max(15, w - 2) if w > 10 else 40  # -2 for ascii-avatar padding
             art = _render_image_url(url, self.app, cols=cols)
-            # Strip leading blank braille (\u2800) from each line so the image
-            # renders flush-left instead of being shifted right by empty dots.
-            art = "\n".join(
-                line.lstrip('\u2800') or '\u2800' for line in art.split("\n")
-            )
             try:
                 avatar = self.query_one("#profile-picture-display", Static)
                 from rich.text import Text
@@ -5587,11 +5582,6 @@ class ProfileView(VerticalScroll):
                 w = self.size.width - 10
             cols = max(15, w - 2) if w > 10 else 40  # -2 for ascii-avatar padding
             art = _render_image_url(url, self.app, cols=cols)
-            # Strip leading blank braille (\u2800) from each line so the image
-            # renders flush-left instead of being shifted right by empty dots.
-            art = "\n".join(
-                line.lstrip('\u2800') or '\u2800' for line in art.split("\n")
-            )
             try:
                 avatar = self.query_one("#profile-picture-display", Static)
                 from rich.text import Text

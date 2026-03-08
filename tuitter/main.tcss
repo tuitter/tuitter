@@ -185,7 +185,7 @@ $follow-text-2: #aaffaa;
 .profile-avatar-large,
 .ascii-avatar {
     color: $text-content;
-    text-align: center;
+    text-align: left;
     padding: 0 1;
 }
 
