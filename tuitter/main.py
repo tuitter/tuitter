@@ -5363,6 +5363,7 @@ class ProfileView(VerticalScroll):
         self._displayed_count = 20
         self._batch_size = 20
         self._loading_more = False
+        self._action_btn_idx = 0  # 0=Follow, 1=Message
 
     def compose(self) -> ComposeResult:
         username = self.profile.get("username", "")
@@ -5407,7 +5408,7 @@ class ProfileView(VerticalScroll):
             if self.actions:
                 buttons_container = Container(classes="profile-action-buttons")
                 with buttons_container:
-                    follow_btn = Button("👥 Follow", id="follow-user-btn", classes="profile-action-btn")
+                    follow_btn = Button("Follow", id="follow-user-btn", classes="profile-action-btn")
                     yield follow_btn
                     yield Button("Message", id="message-user-btn", classes="profile-action-btn")
                 yield buttons_container
@@ -5468,9 +5469,8 @@ class ProfileView(VerticalScroll):
                 if currently_following:
                     ok = api.unfollow_user(target)
                     if ok:
-                        event.button.label = "\U0001f465 Follow"
+                        event.button.label = "Follow"
                         self.profile["is_following"] = False
-                        # Decrement followers count in stats
                         try:
                             old = int(self.profile.get("followers", 0))
                             self.profile["followers"] = max(0, old - 1)
@@ -5491,7 +5491,7 @@ class ProfileView(VerticalScroll):
                 else:
                     ok = api.follow_user(target)
                     if ok:
-                        event.button.label = "\U0001f464 Unfollow"
+                        event.button.label = "Unfollow"
                         self.profile["is_following"] = True
                         try:
                             old = int(self.profile.get("followers", 0))
@@ -5599,11 +5599,11 @@ class ProfileView(VerticalScroll):
                 rows.append([])
 
         # Action buttons row (Follow / Message) — only present on other users' profiles
+        # Treat the container as the row item (like file-buttons-row in SettingsPanel)
+        # so that h/l navigate sub-buttons via _action_btn_idx.
         try:
             btns_container = self.query_one(".profile-action-buttons", Container)
-            btn_widgets = list(btns_container.query(Button))
-            if btn_widgets:
-                rows.append(btn_widgets)
+            rows.append([btns_container])
         except Exception:
             pass
 
@@ -5668,6 +5668,14 @@ class ProfileView(VerticalScroll):
                                 pass
                     except Exception:
                         pass
+                # If action buttons container, also highlight the active sub-button
+                try:
+                    for item in cols:
+                        if "profile-action-buttons" in (getattr(item, "classes", []) or []):
+                            self._update_action_btn_highlight()
+                            break
+                except Exception:
+                    pass
                 # Scroll to the first widget in the row for visibility
                 if cols:
                     try:
@@ -5698,12 +5706,32 @@ class ProfileView(VerticalScroll):
                             parent.add_class("vim-cursor")
                 except Exception:
                     pass
+                # If action buttons container, also highlight the active sub-button
+                try:
+                    if "profile-action-buttons" in (getattr(target, "classes", []) or []):
+                        self._update_action_btn_highlight()
+                except Exception:
+                    pass
                 try:
                     self.scroll_to_widget(target, top=True)
                 except Exception:
                     pass
             except Exception:
                 pass
+        except Exception:
+            pass
+
+    def _update_action_btn_highlight(self) -> None:
+        """Apply vim-cursor to the active button inside profile-action-buttons."""
+        try:
+            btns = list(self.query(".profile-action-buttons Button"))
+            for i, btn in enumerate(btns):
+                if i == self._action_btn_idx:
+                    btn.add_class("vim-cursor")
+                    btn.add_class("action-selected")
+                else:
+                    btn.remove_class("vim-cursor")
+                    btn.remove_class("action-selected")
         except Exception:
             pass
 
@@ -5733,6 +5761,14 @@ class ProfileView(VerticalScroll):
         cols = rows[self.cursor_row] if 0 <= self.cursor_row < len(rows) else []
         if not cols:
             return
+        # Special case: action buttons row — navigate sub-buttons with h/l
+        try:
+            if len(cols) == 1 and "profile-action-buttons" in (getattr(cols[0], "classes", []) or []):
+                self._action_btn_idx = max(0, self._action_btn_idx - 1)
+                self._update_action_btn_highlight()
+                return
+        except Exception:
+            pass
         # If currently row-focused, move to rightmost column
         if self.cursor_col is None or self.cursor_col < 0:
             self.cursor_col = len(cols) - 1
@@ -5749,6 +5785,15 @@ class ProfileView(VerticalScroll):
         cols = rows[self.cursor_row] if 0 <= self.cursor_row < len(rows) else []
         if not cols:
             return
+        # Special case: action buttons row — navigate sub-buttons with h/l
+        try:
+            if len(cols) == 1 and "profile-action-buttons" in (getattr(cols[0], "classes", []) or []):
+                btns = list(self.query(".profile-action-buttons Button"))
+                self._action_btn_idx = min(len(btns) - 1, self._action_btn_idx + 1)
+                self._update_action_btn_highlight()
+                return
+        except Exception:
+            pass
         # If row-focused, move to first column
         if self.cursor_col is None or self.cursor_col < 0:
             self.cursor_col = 0
@@ -5807,6 +5852,15 @@ class ProfileView(VerticalScroll):
                 cols = rows[self.cursor_row]
                 if cols:
                     target = cols[0] if len(cols) == 1 else (cols[self.cursor_col] if (self.cursor_col is not None and self.cursor_col >= 0 and self.cursor_col < len(cols)) else cols[0])
+                    # If action buttons row, press the active sub-button
+                    try:
+                        if "profile-action-buttons" in (getattr(target, "classes", []) or []):
+                            btns = list(self.query(".profile-action-buttons Button"))
+                            if 0 <= self._action_btn_idx < len(btns):
+                                btns[self._action_btn_idx].press()
+                            return
+                    except Exception:
+                        pass
                     # If this is a PostItem, call its on_click to open comments
                     try:
                         from .main import PostItem
@@ -8758,7 +8812,7 @@ class Proj101App(App):
                                     self.notify(f"Now following @{target_handle}!", severity="success")
                                     try:
                                         btn = self.query_one("#follow-user-btn", Button)
-                                        btn.label = "\U0001f464 Unfollow"
+                                        btn.label = "Unfollow"
                                     except Exception:
                                         pass
                                 else:
@@ -8788,7 +8842,7 @@ class Proj101App(App):
                                 self.notify(f"Unfollowed @{target_handle}.", severity="success")
                                 try:
                                     btn = self.query_one("#follow-user-btn", Button)
-                                    btn.label = "\U0001f465 Follow"
+                                    btn.label = "Follow"
                                 except Exception:
                                     pass
                             else:
