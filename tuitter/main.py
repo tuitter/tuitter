@@ -332,7 +332,7 @@ class AuthScreen(Screen):
 
     def compose(self) -> ComposeResult:
         # Minimal auth screen: centered sign-in button
-        with Container(id="auth-wrapper"):
+        with Container(id="auth-content"):
             with Container(id="auth-center"):
                 yield Static(
                     "Continue in your browser", id="auth-title", classes="signin"
@@ -345,13 +345,8 @@ class AuthScreen(Screen):
                         variant="primary",
                         classes="signin",
                     )
-
-        # Status text should appear outside and below the cyan card so it's visually
-        # separated from the dialog. Center it horizontally.
-        yield Static("", id="auth-status", classes="signin")
-        # Small hint so users know Enter will activate the sign-in
-        yield Static("press Enter to sign in", id="auth-hint", classes="signin")
-
+            yield Static("", id="auth-status", classes="signin")
+            yield Static("press Enter to sign in", id="auth-hint", classes="signin")
         yield Static("press q to quit", id="quit-label", classes="signin")
 
     def on_mount(self) -> None:
@@ -453,6 +448,10 @@ class AuthScreen(Screen):
                 self.app.log_auth_event("call_after_refresh returned")
             except Exception:
                 pass
+
+    def key_q(self) -> None:
+        """Quit the app from the login screen."""
+        self.app.exit()
 
     def key_enter(self) -> None:
         """Allow Enter to trigger the auth flow even when the button isn't focused.

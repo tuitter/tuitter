@@ -288,8 +288,21 @@ $scrollbar-sidebar-active: $dracula-cyan;
    AUTH SCREEN STYLES
    ====================================================================== */
 
-#auth-wrapper {
+AuthScreen {
     align: center middle;
+}
+
+#auth-wrapper {
+    layout: vertical;
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#auth-content {
+    layout: vertical;
+    width: 40;
+    height: auto;
 }
 
 #auth-center {
@@ -348,25 +361,30 @@ Button#oauth-signin:hover, Button#oauth-signin.-primary:hover {
 }
 
 #quit-label {
-    align: left bottom;
-    margin: 1 2;
+    dock: bottom;
+    width: 100%;
+    height: 1;
+    color: $text-muted;
+    text-style: italic;
+    margin: 0 0 1 2;
 }
 
 #auth-status {
-    margin-top: 1;
-    content-align-horizontal: center;
     text-align: center;
+    content-align-horizontal: center;
     color: $text-primary;
     min-height: 1;
+    width: 40;
 }
 
 #auth-hint {
-    margin-top: 1;
-    content-align-horizontal: center;
     text-align: center;
+    content-align-horizontal: center;
     color: $text-subtle;
     text-style: italic;
     min-height: 1;
+    width: 40;
+    padding: 1 0 0 0;
 }
 
 Button.danger {
