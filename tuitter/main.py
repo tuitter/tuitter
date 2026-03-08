@@ -7146,9 +7146,14 @@ class Proj101App(App):
                 old_feed = self.query_one("#timeline-feed", TimelineFeed)
                 parent = old_feed.parent
                 old_feed.remove()
-                self.call_after_refresh(
-                    lambda: parent.mount(TimelineFeed(id="timeline-feed"))
-                )
+
+                def _mount_and_focus():
+                    parent.mount(TimelineFeed(id="timeline-feed"))
+                    self.call_after_refresh(
+                        lambda: self._focus_main_content_for_screen("timeline")
+                    )
+
+                self.call_after_refresh(_mount_and_focus)
             except Exception:
                 # Fallback: full screen switch (bypasses same-screen guard)
                 self.current_screen_name = ""
