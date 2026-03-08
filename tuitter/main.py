@@ -1959,30 +1959,30 @@ class NewPostDialog(ModalScreen):
         self.in_insert_mode = True  # Start in insert mode (textarea focused)
 
     def compose(self) -> ComposeResult:
-        with Container(id="dialog-container"):
-            yield Static("Create New Post", id="dialog-title")
-            # Scrollable content area
-            with VerticalScroll(id="dialog-scroll"):
-                yield TextArea(id="post-textarea")
-                # Status/attachments display area
-                yield Static("", id="attachments-list", classes="attachments-list", markup=False)
-                yield Static("", id="status-message", classes="status-message")
+        with Container(id="new-post-wrapper"):
+            with Container(id="dialog-container"):
+                yield Static("Create New Post", id="dialog-title")
+                # Scrollable content area
+                with VerticalScroll(id="dialog-scroll"):
+                    yield TextArea(id="post-textarea")
+                    # Status/attachments display area
+                    yield Static("", id="attachments-list", classes="attachments-list", markup=False)
+                    yield Static("", id="status-message", classes="status-message")
 
-                # Media attachment buttons
-                with Container(id="media-buttons"):
-                    yield Button("Add Photo", id="attach-photo")
+                    # Media attachment buttons
+                    with Container(id="media-buttons"):
+                        yield Button("Add Photo", id="attach-photo")
 
-            # Action buttons pinned outside the scroll area
-            with Container(id="action-buttons"):
-                yield Button("Post", variant="primary", id="post-button")
-                yield Button("Save", id="draft-button")
-                yield Button("Cancel", id="cancel-button")
-        # Key hints rendered outside the box so they're always visible
-        yield Static(
-            "\\[i] edit | \\[r] remove photo | \\[esc] navigate",
-            id="vim-hints",
-            classes="vim-hints",
-        )
+                # Action buttons pinned outside the scroll area
+                with Container(id="action-buttons"):
+                    yield Button("Post", variant="primary", id="post-button")
+                    yield Button("Save", id="draft-button")
+                    yield Button("Cancel", id="cancel-button")
+            yield Static(
+                "\\[i] edit | \\[r] remove photo | \\[esc] navigate",
+                id="vim-hints",
+                classes="vim-hints",
+            )
 
     def on_mount(self) -> None:
         """Focus the textarea when dialog opens."""
@@ -7139,13 +7139,29 @@ class Proj101App(App):
         # Don't interfere with command input typing
         pass
 
+    def _refresh_timeline_feed(self) -> None:
+        """Replace the TimelineFeed in-place with a fresh one to show latest posts."""
+        if self.current_screen_name == "timeline":
+            try:
+                old_feed = self.query_one("#timeline-feed", TimelineFeed)
+                parent = old_feed.parent
+                old_feed.remove()
+                self.call_after_refresh(
+                    lambda: parent.mount(TimelineFeed(id="timeline-feed"))
+                )
+            except Exception:
+                # Fallback: full screen switch (bypasses same-screen guard)
+                self.current_screen_name = ""
+                self.switch_screen("timeline")
+        else:
+            self.switch_screen("timeline")
+
     def action_new_post(self) -> None:
         """Show the new post dialog."""
 
         def check_refresh(result):
             if result:
-                if self.current_screen_name == "timeline":
-                    self.switch_screen("timeline")
+                self._refresh_timeline_feed()
 
         self.push_screen(NewPostDialog(), check_refresh)
 
@@ -7169,8 +7185,7 @@ class Proj101App(App):
                                 self.post_message(DraftsUpdated())
                         except Exception:
                             pass
-                        if self.current_screen_name == "timeline":
-                            self.switch_screen("timeline")
+                        self._refresh_timeline_feed()
                     else:
                         # Dialog was closed without posting, refresh drafts in case it was saved
                         try:
@@ -7648,7 +7663,10 @@ class Proj101App(App):
                         elif self.current_screen_name in ("timeline", "discover"):
                             # Open the new post dialog when on timeline or discover
                             try:
-                                self.push_screen(NewPostDialog())
+                                def _check_refresh_cmd(result):
+                                    if result:
+                                        self._refresh_timeline_feed()
+                                self.push_screen(NewPostDialog(), _check_refresh_cmd)
                             except Exception:
                                 pass
 

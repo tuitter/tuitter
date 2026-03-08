@@ -2041,15 +2041,38 @@ NewPostDialog, DeleteDraftDialog, DeletePostDialog, NewMessageDialog {
 NewPostDialog {
     align: center middle;
     layout: vertical;
+    width: 100%;
+    height: 100%;
 }
 
 NewPostDialog > #vim-hints {
-    width: 90;
+    dock: bottom;
+    width: 100%;
     text-align: center;
     color: $text-muted;
     text-style: italic;
     height: auto;
     padding: 0 1;
+}
+
+#new-post-wrapper {
+    width: 60%;
+    height: auto;
+    layout: vertical;
+    align: center middle;
+}
+
+#new-post-wrapper > #dialog-container {
+    width: 100%;
+}
+
+#new-post-wrapper > .vim-hints {
+    width: 100%;
+    text-align: center;
+    color: $text-muted;
+    text-style: italic;
+    height: auto;
+    padding: 1 0 0 0;
 }
 
 #delete-post-wrapper {
@@ -2214,6 +2237,13 @@ DeletePostDialog {
     color: $text-primary;
 }
 
+#media-buttons Button:focus {
+    background: $bg-dark;
+    border: solid $color-cyan;
+    color: $text-primary;
+}
+
+#media-buttons Button.vim-cursor:focus,
 #media-buttons Button.vim-cursor {
     background: $bg-highlight;
     border: heavy $primary;
