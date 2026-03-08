@@ -693,48 +693,36 @@ DraftsScreen {
     dock: top;
     width: 100%;
     height: 1;
-    /* use a darker, subtle navbar to match the app's dark theme */
-    background: $bg-nav;
-    color: $primary-lighter;
+    background: $bg-darker;
     layout: horizontal;
     margin-bottom: 1;
 }
 
-#top-navbar Tabs#top-tabs {
-    layout: horizontal;
-    width: 100%;
-    height: auto;
-    background: transparent;
-    content-align: left middle;
-}
-
-#top-tabs Tab {
+.nav-tab {
     width: auto;
-    padding: 0 3;
+    height: 1;
+    padding: 0 4;
     background: transparent;
-    color: $primary-light;
+    color: $text-dim;
     text-style: none;
     content-align: center middle;
 }
 
-#top-tabs Tab:hover {
-    background: $primary-darker;
-    color: $text-primary;
+.nav-tab:hover {
+    background: $bg-lighter;
+    color: $text-secondary;
 }
 
-#top-tabs Tab:focus {
-    outline: thick $primary;
-    background: $primary-dark;
-    color: $text-primary;
+.nav-tab:focus {
+    background: $bg-focused;
+    color: $primary;
     text-style: bold;
-    border-bottom: heavy $primary;
 }
 
-#top-tabs Tab.-active, #top-tabs Tab.active {
-    background: $primary-dark;
-    color: $text-primary;
+.nav-tab.nav-tab-active {
+    background: $bg-lighter;
+    color: $primary;
     text-style: bold;
-    border-bottom: heavy $primary;
 }
 
 /* App Footer */
@@ -745,6 +733,7 @@ DraftsScreen {
     color: $text-dim;
     padding: 0 2;
     content-align: left middle;
+    margin-top: 1;
 }
 
 /* Main Layout Containers */

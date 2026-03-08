@@ -1636,130 +1636,66 @@ class NotificationItem(Static):
 # ───────── Top Navbar ─────────
 
 
-from textual.widgets import Tabs, Tab
+class NavTab(Static):
+    """A single clickable navigation tab."""
+
+    can_focus = False
+
+    def __init__(self, label: str, screen_name: str, **kwargs):
+        super().__init__(label, **kwargs)
+        self.screen_name = screen_name
+
+    def on_click(self) -> None:
+        self.app.switch_screen(self.screen_name)
 
 
 class TopNav(Horizontal):
-    """Top navigation implemented using Textual's Tabs widget.
+    """Custom top navigation bar — fully self-contained, no Textual Tabs internals."""
 
-    This wrapper preserves the `update_active(screen_name)` API so the rest
-    of the app (notably `switch_screen`) doesn't need to change.
-    """
+    _TABS = [
+        ("[1] Timeline", "timeline"),
+        ("[2] Discover", "discover"),
+        ("[3] Following", "following"),
+        ("[4] Notifs", "notifications"),
+        ("[5] Messages", "messages"),
+        ("[6] Settings", "settings"),
+    ]
 
     current = reactive("timeline")
 
     def __init__(self, current: str = "timeline", **kwargs):
         super().__init__(**kwargs)
         self.current = current
-        # Expose the inner Tabs widget for easier external access
-        self.tabs = None
+        # Compatibility shim: external code calls self.tabs.focus()
+        self.tabs = self
 
     def compose(self) -> ComposeResult:
-        # Use explicit Tab ids so programmatic activation is stable
-        yield Tabs(
-            Tab("[1] Timeline", id="tab-timeline"),
-            Tab("[2] Discover", id="tab-discover"),
-            Tab("[3] Following", id="tab-following"),
-            Tab("[4] Notifs", id="tab-notifications"),
-            Tab("[5] Messages", id="tab-messages"),
-            Tab("[6] Settings", id="tab-settings"),
-            id="top-tabs",
-            active=self._screen_to_tab_id(self.current),
-        )
-
-    def _tab_to_screen_name(self, tab_id: str) -> str:
-        return {
-            "tab-timeline": "timeline",
-            "tab-discover": "discover",
-            "tab-notifications": "notifications",
-            "tab-messages": "messages",
-            "tab-settings": "settings",
-            "tab-following": "following",
-        }.get(tab_id, "timeline")
-
-    def _screen_to_tab_id(self, screen_name: str) -> str:
-        return {
-            "timeline": "tab-timeline",
-            "discover": "tab-discover",
-            "notifications": "tab-notifications",
-            "messages": "tab-messages",
-            "settings": "tab-settings",
-            "following": "tab-following",
-        }.get(screen_name, "tab-timeline")
+        for label, screen_name in self._TABS:
+            yield NavTab(label, screen_name, id=f"tab-{screen_name}", classes="nav-tab")
 
     def on_mount(self) -> None:
-        # Ensure the active tab reflects current - use update_active which
-        # properly handles clearing tabs for drafts/profile screens
-        try:
-            tabs = self.query_one("#top-tabs", Tabs)
-            # Save reference for external callers
-            self.tabs = tabs
-            # Use update_active to properly handle special screens like drafts
-            self.update_active(self.current)
-        except Exception:
-            pass
+        self.update_active(self.current)
 
-    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
-        """Handle TabActivated message from inner Tabs and switch screens."""
-        try:
-            # event.tab can be a Tab or None depending on Textual version
-            tab = getattr(event, "tab", None)
-            if tab is None:
-                return
-            tab_id = getattr(tab, "id", None)
-            if not tab_id:
-                return
-            screen_name = self._tab_to_screen_name(tab_id)
-            # Ask the App to switch screens
-            self.app.switch_screen(screen_name)
-        except Exception:
-            pass
-
-    def update_active(self, screen_name: str):
-        """Compatibility method used by the App to set the active screen."""
+    def update_active(self, screen_name: str) -> None:
+        """Highlight the tab matching screen_name; clear all others."""
         self.current = screen_name
+        for tab in self.query(".nav-tab"):
+            tab.remove_class("nav-tab-active")
+        if screen_name not in ("drafts", "profile", "user_profile"):
+            try:
+                self.query_one(f"#tab-{screen_name}", NavTab).add_class("nav-tab-active")
+            except Exception:
+                pass
+
+    def focus(self, scroll_visible: bool = True):
+        """Focus the active tab (or first tab) for keyboard navigation."""
         try:
-            # If showing the Drafts screen, explicitly clear any active Tab
-            # and also remove active widget classes from the Tab widgets so
-            # the visual highlight (background) is removed across Textual
-            # versions that may retain the class even when `tabs.active` is
-            # cleared.
-            tabs = getattr(self, "tabs", None) or self.query_one("#top-tabs", Tabs)
-            # When showing non-main content like Drafts or Profile screens,
-            # clear the Tabs active state so no top-nav tab remains highlighted.
-            if screen_name in ("drafts", "profile", "user_profile"):
-                try:
-                    tabs.active = None
-                except Exception:
-                    try:
-                        tabs.active = ""
-                    except Exception:
-                        pass
-
-                # Force-remove active classes from child Tab widgets
-                try:
-                    for tab in tabs.query(Tab):
-                        try:
-                            tab.remove_class("-active")
-                        except Exception:
-                            pass
-                        try:
-                            tab.remove_class("active")
-                        except Exception:
-                            pass
-                        try:
-                            tab.refresh()
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-                return
-
-            # Normal behavior: activate the corresponding tab
-            tabs.active = self._screen_to_tab_id(screen_name)
-
+            self.query_one(".nav-tab-active", NavTab).focus()
         except Exception:
-            pass
+            try:
+                self.query(".nav-tab").first().focus()
+            except Exception:
+                pass
 
 
 # ───────── Sidebar ─────────
@@ -7554,11 +7490,7 @@ class Proj101App(App):
     def action_focus_navigation(self) -> None:
         try:
             topnav = self.query_one("#top-navbar", TopNav)
-            # Prefer direct attribute if TopNav exposed its Tabs instance
-            tabs = getattr(topnav, "tabs", None)
-            if tabs is None:
-                tabs = topnav.query_one("#top-tabs", Tabs)
-            tabs.focus()
+            topnav.focus()
         except Exception:
             pass
 
