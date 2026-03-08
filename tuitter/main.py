@@ -5397,9 +5397,7 @@ class ProfileView(VerticalScroll):
             bio_container = Container(classes="profile-bio-container")
             bio_container.border_title = "Bio"
             with bio_container:
-                # Use user.bio if available, otherwise use profile bio
-                user = api.get_current_user()
-                bio_text = user.bio if user and user.bio else self.profile.get("bio", "")
+                bio_text = self.profile.get("bio", "") or ""
                 if bio_text.strip() == "":
                     bio_text = "No bio available"
                 yield Static(bio_text, classes="profile-bio-display")
