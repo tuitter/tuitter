@@ -3873,7 +3873,7 @@ class ConversationsList(VerticalScroll):
 class ChatView(VerticalScroll):
     conversation_id = reactive(0)  # Changed to int to match backend
     conversation_username = reactive("")
-    cursor_position = reactive(0)
+    cursor_position = reactive(-1)  # -1 = no selection until explicitly focused
     input_active = reactive(False)
 
     def __init__(self, conversation_id: int = 0, username: str = "", **kwargs):
@@ -4085,9 +4085,17 @@ class ChatView(VerticalScroll):
         except Exception:
             inp = None
 
+        # -1 means no selection — clear any stale highlights and bail
+        if new_position == -1:
+            for m in messages:
+                m.remove_class("vim-cursor")
+            if inp:
+                inp.remove_class("vim-cursor")
+            return
+
         # Remove cursor from old position
         try:
-            if old_position < len(messages):
+            if old_position >= 0 and old_position < len(messages):
                 old_msg = messages[old_position]
                 if "vim-cursor" in old_msg.classes:
                     old_msg.remove_class("vim-cursor")
@@ -4151,8 +4159,11 @@ class ChatView(VerticalScroll):
         if self.app.command_mode:
             return
         messages = list(self.query(".chat-message"))
-        # allow moving into the input (index == len(messages))
-        if self.cursor_position < len(messages):
+        if self.cursor_position == -1:
+            # First navigation: jump to last message
+            if messages:
+                self.cursor_position = len(messages) - 1
+        elif self.cursor_position < len(messages):
             self.cursor_position += 1
 
     def key_k(self) -> None:
