@@ -4292,6 +4292,7 @@ class SettingsPanel(VerticalScroll):
     cursor_position = reactive(0)
     settings_loaded = reactive(False)
     _file_btn_idx: int = 0  # 0 = Upload, 1 = Remove
+    _profile_pic_path: str = ""  # path to the locally-selected image file
 
     def compose(self) -> ComposeResult:
         """Build settings content synchronously so items are real children
@@ -4767,6 +4768,40 @@ class SettingsPanel(VerticalScroll):
         except Exception:
             pass
 
+    def _render_profile_pic(self) -> None:
+        """Render the selected profile picture at the actual panel width, then
+        store the result as _pending_ascii and update the preview widget.
+        Mirrors PostItem._fill_image_placeholders.
+        """
+        path = getattr(self, "_profile_pic_path", "")
+        if not path:
+            return
+        try:
+            # Use the avatar container width for accurate column count
+            try:
+                container = self.query_one(".profile-avatar-container")
+                w = container.size.width
+            except Exception:
+                w = self.size.width
+            cols = max(15, w - 4) if w > 10 else 40
+            ascii_art = image_to_braille_art(path, cols=cols)
+            self._pending_ascii = ascii_art
+            try:
+                avatar = self.query_one("#profile-picture-display", Static)
+                avatar.update(ascii_art)
+            except Exception:
+                pass
+        except Exception:
+            try:
+                self.app.notify("Failed to convert image to ASCII", severity="error")
+            except Exception:
+                pass
+
+    def on_resize(self) -> None:
+        """Re-render the profile picture preview when the terminal is resized."""
+        if getattr(self, "_profile_pic_path", ""):
+            self.call_after_refresh(self._render_profile_pic)
+
     def _update_file_btn_highlight(self) -> None:
         """Apply vim-cursor to the active button inside file-buttons-row."""
         try:
@@ -4862,44 +4897,20 @@ class SettingsPanel(VerticalScroll):
                 if not file_path:
                     return
 
-                # Inline braille conversion for profile picture preview
+                # Store path and render at actual panel width after layout
+                self._profile_pic_path = file_path
+                self.call_after_refresh(self._render_profile_pic)
                 try:
-                    # Profile panel is ~1/4 of terminal width
-                    _term_w = self.app.size.width if self.app else 120
-                    _art_cols = max(15, (_term_w // 4) - 4)
-                    ascii_art = image_to_braille_art(file_path, cols=_art_cols)
-
+                    self.app.notify("Profile picture preview updating…", severity="information")
                 except Exception:
-                    # Fallback: notify and abort if conversion fails
-                    try:
-                        self.app.notify("Failed to convert image to ASCII", severity="error")
-                    except Exception:
-                        pass
-                    return
+                    pass
 
-                # Store locally as a pending change and update preview in the panel
-                try:
-                    self._pending_ascii = ascii_art
-                except Exception:
-                    self._pending_ascii = ascii_art
-
-                try:
-                    avatar = self.query_one("#profile-picture-display", Static)
-                    avatar.update(ascii_art)
-                    try:
-                        self.app.notify("Profile picture preview updated", severity="success")
-                    except Exception:
-                        pass
-                except Exception:
-                    try:
-                        self.app.notify("Profile widget not found to update preview", severity="error")
-                    except Exception:
-                        pass
             except Exception:
                 pass
         # Delete profile picture (clear pending preview)
         elif btn_id == "delete-profile-picture":
             try:
+                self._profile_pic_path = ""
                 try:
                     self._pending_ascii = ""
                 except Exception:
@@ -5041,7 +5052,19 @@ class SettingsPanel(VerticalScroll):
                     pass
                 return
 
-            # Apply pending ascii if present (allow empty string to clear)
+            # Apply pending ascii if present (allow empty string to clear).
+            # Re-render from path first so we always save at current terminal width.
+            try:
+                if getattr(self, "_profile_pic_path", ""):
+                    try:
+                        container = self.query_one(".profile-avatar-container")
+                        w = container.size.width
+                    except Exception:
+                        w = self.size.width
+                    cols = max(15, w - 4) if w > 10 else 40
+                    self._pending_ascii = image_to_braille_art(self._profile_pic_path, cols=cols)
+            except Exception:
+                pass
             try:
                 pending = getattr(self, "_pending_ascii", None)
                 if pending is not None:
