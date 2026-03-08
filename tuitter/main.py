@@ -4305,7 +4305,7 @@ class MessagesScreen(Container):
     def on_mount(self) -> None:
         """Add border to conversations list and update chat if DM"""
         conversations = self.query_one("#conversations", ConversationsList)
-        conversations.border_title = "[6] Messages"
+        conversations.border_title = "[9] Messages"
 
         # Start WebSocket worker for real-time messages
         try:
@@ -4324,6 +4324,9 @@ class MessagesScreen(Container):
                 # Subscribe to this conversation for WebSocket updates
                 if chat.conversation_id and chat.conversation_id > 0:
                     self._ws_subscribe_queue.put_nowait(chat.conversation_id)
+
+                # Select this conversation in the conversations list
+                self.call_after_refresh(lambda: self._select_dm_conversation(self.dm_username))
 
                 # Focus the message input
                 self.call_after_refresh(self._focus_message_input)
@@ -4351,6 +4354,20 @@ class MessagesScreen(Container):
             msg_input = self.query_one("#message-input", Input)
             msg_input.focus()
         except:
+            pass
+
+    def _select_dm_conversation(self, username: str) -> None:
+        """Highlight the conversation row matching username in the conversations list."""
+        try:
+            conv_list = self.query_one("#conversations", ConversationsList)
+            current_user = get_username() or "yourname"
+            for i, conv in enumerate(conv_list._conversations):
+                others = [h for h in conv.participant_handles if h != current_user]
+                if username in others:
+                    conv_list.selected_position = i
+                    conv_list.cursor_position = i
+                    break
+        except Exception:
             pass
 
     def _open_chat_view(self, conversation_id: int, username: str) -> None:
@@ -6661,6 +6678,7 @@ class Proj101App(App):
         Binding("3", "show_following", "Following", show=False),
         Binding("4", "show_notifications", "Notifications", show=False),
         Binding("5", "show_messages", "Messages", show=False),
+        Binding("9", "focus_messages", "Messages Panel", show=False),
         Binding("6", "show_settings", "Settings", show=False),
         Binding("p", "show_profile", "Profile", show=False),
         Binding("d", "show_drafts", "Drafts", show=False),
@@ -7151,7 +7169,7 @@ class Proj101App(App):
             ),
             "messages": (
                 MessagesScreen,
-                "[0] Chat [1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:m] New Message [:q] Quit",
+                "[0] Chat [9] Convos [1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:m] New Message [:q] Quit",
             ),
             "profile": (
                 ProfileScreen,
@@ -7496,11 +7514,20 @@ class Proj101App(App):
             pass
 
     def action_focus_messages(self) -> None:
-        """Focus the messages list when pressing 6"""
+        """Focus the conversations list (press 9). Switches to messages screen first if needed."""
         try:
-            if self.current_screen_name == "messages":
+            if self.current_screen_name != "messages":
+                self.switch_screen("messages")
+                def _focus_after_switch():
+                    try:
+                        conversations = self.query_one("#conversations", ConversationsList)
+                        conversations.add_class("vim-mode-active")
+                        conversations.focus()
+                    except Exception:
+                        pass
+                self.set_timer(0.15, _focus_after_switch)
+            else:
                 conversations = self.query_one("#conversations", ConversationsList)
-                conversations.border_title = "[6] Messages"
                 conversations.add_class("vim-mode-active")
                 conversations.focus()
         except Exception:
@@ -8070,6 +8097,7 @@ class Proj101App(App):
                     "3": "following",
                     "4": "notifications",
                     "5": "messages",
+                    "9": "messages",
                     "6": "settings",
                 }
                 if command in screen_map:

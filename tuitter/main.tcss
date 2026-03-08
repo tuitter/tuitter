@@ -1489,7 +1489,7 @@ Button.delete-profile-picture.file-btn-danger:hover {
     align: left top;
     margin-right: 20;
     margin-bottom: 1;
-    border: solid $dracula-green;
+    border: solid $chat-received-border;
 }
 
 /* Selected/keyboard focus state for messages (vim-mode selection) */
