@@ -1808,12 +1808,9 @@ class Sidebar(VerticalScroll):
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
                 yield CommandItem("[Enter]", "comments", classes="command-item")
-            elif self.current_screen == "settings":
-                yield CommandItem(":w", "save", classes="command-item")
-                yield CommandItem(":e", "edit", classes="command-item")
-
-            # Spacing
-            yield Static("", classes="command-item")
+            # Spacing (only when screen-specific commands were shown above)
+            if self.current_screen != "settings":
+                yield Static("", classes="command-item")
             # Global profile commands (always visible)
             yield CommandItem(":@user", "profile", classes="command-item")
             yield CommandItem(":@", "profile (under cursor)", classes="command-item")
