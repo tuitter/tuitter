@@ -1785,8 +1785,6 @@ class Sidebar(VerticalScroll):
             # Show only screen-specific commands to save space
             if self.current_screen == "messages":
                 yield CommandItem(":m", "dm user", classes="command-item")
-                yield CommandItem(":n", "new msg", classes="command-item")
-                yield CommandItem(":r", "reply to msg", classes="command-item")
             elif self.current_screen in ("timeline", "discover"):
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
@@ -1794,8 +1792,7 @@ class Sidebar(VerticalScroll):
                 # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
                 yield CommandItem("[Enter]", "comments", classes="command-item")
             elif self.current_screen == "notifications":
-                yield CommandItem(":m", "mark read", classes="command-item")
-                yield CommandItem(":ma", "mark all", classes="command-item")
+                pass
             elif self.current_screen == "profile":
                 yield CommandItem(":f", "follow", classes="command-item")
                 yield CommandItem(":uf", "unfollow", classes="command-item")
@@ -1807,9 +1804,10 @@ class Sidebar(VerticalScroll):
             elif self.current_screen == "following":
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
+                yield CommandItem(":del", "delete post", classes="command-item")
                 yield CommandItem("[Enter]", "comments", classes="command-item")
             # Spacing (only when screen-specific commands were shown above)
-            if self.current_screen != "settings":
+            if self.current_screen not in ("settings", "drafts", "notifications"):
                 yield Static("", classes="command-item")
             # Global profile commands (always visible)
             yield CommandItem(":@user", "profile", classes="command-item")
@@ -3105,6 +3103,22 @@ class FollowingFeed(VerticalScroll):
         self.watch(self, "cursor_position", self._update_cursor)
         self.watch(self, "scroll_y", self._check_scroll_load)
 
+    def on_focus(self) -> None:
+        try:
+            if getattr(self.app, "_just_closed_comment_panel", False):
+                try:
+                    self._update_cursor()
+                except Exception:
+                    pass
+                return
+        except Exception:
+            pass
+        self.cursor_position = 0
+        self._update_cursor()
+
+    def on_blur(self) -> None:
+        pass
+
     def on_scroll(self, event) -> None:
         try:
             self.scroll_y = self.scroll_offset.y
@@ -3136,14 +3150,17 @@ class FollowingFeed(VerticalScroll):
         finally:
             self._loading_more = False
 
-    def _update_cursor(self, cursor: int) -> None:
+    def _update_cursor(self) -> None:
         try:
             items = list(self.query(".post-item"))
-            for i, item in enumerate(items):
-                if i == cursor:
-                    item.add_class("vim-cursor")
-                else:
-                    item.remove_class("vim-cursor")
+            for item in items:
+                item.remove_class("vim-cursor")
+            if 0 <= self.cursor_position < len(items):
+                item = items[self.cursor_position]
+                item.add_class("vim-cursor")
+                self.scroll_to_widget(item, top=True)
+                if self.cursor_position >= len(items) - 5:
+                    self._load_more_posts()
         except Exception:
             pass
 
@@ -3153,21 +3170,59 @@ class FollowingFeed(VerticalScroll):
         items = list(self.query(".post-item"))
         if self.cursor_position < len(items) - 1:
             self.cursor_position += 1
-            try:
-                items[self.cursor_position].scroll_visible()
-            except Exception:
-                pass
 
     def key_k(self) -> None:
         if self.app.command_mode:
             return
         if self.cursor_position > 0:
             self.cursor_position -= 1
-            try:
-                items = list(self.query(".post-item"))
-                items[self.cursor_position].scroll_visible()
-            except Exception:
-                pass
+
+    def key_g(self) -> None:
+        pass  # handled in on_key for double-press
+
+    def key_G(self) -> None:
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        self.cursor_position = len(items) - 1
+
+    def key_ctrl_d(self) -> None:
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        self.cursor_position = min(self.cursor_position + 5, len(items) - 1)
+
+    def key_ctrl_u(self) -> None:
+        if self.app.command_mode:
+            return
+        self.cursor_position = max(self.cursor_position - 5, 0)
+
+    def key_w(self) -> None:
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        self.cursor_position = min(self.cursor_position + 3, len(items) - 1)
+
+    def key_b(self) -> None:
+        if self.app.command_mode:
+            return
+        self.cursor_position = max(self.cursor_position - 3, 0)
+
+    def on_key(self, event) -> None:
+        if self.app.command_mode:
+            return
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            return
+        if event.key == "g":
+            now = time.time()
+            if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
+                self.cursor_position = 0
+                event.prevent_default()
+                delattr(self, "last_g_time")
+            else:
+                self.last_g_time = now
 
 
 class FollowingScreen(Container):
@@ -3838,6 +3893,9 @@ class ConversationsList(VerticalScroll):
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and prevent escape from unfocusing"""
         if event.key == "escape":
+            # In command mode, let escape bubble up to the app handler
+            if self.app.command_mode:
+                return
             # Prevent escape from unfocusing the conversation list
             event.prevent_default()
             event.stop()
@@ -6290,6 +6348,9 @@ class ProfilePanel(VerticalScroll):
     def on_key(self, event) -> None:
         """Handle double-g for gg and escape passthrough at panel level."""
         if event.key == "escape":
+            # In command mode, let escape bubble up to the app handler
+            if self.app.command_mode:
+                return
             # Prevent escape from unfocusing important widgets inside panel
             try:
                 event.prevent_default()
@@ -7749,6 +7810,7 @@ class Proj101App(App):
                     content_map = {
                         "timeline": "#timeline-feed",
                         "discover": "#discover-feed",
+                        "following": "#following-feed",
                         "notifications": "#notifications-feed",
                         "messages": "#chat",
                         "profile": "#profile-panel",
@@ -8160,8 +8222,8 @@ class Proj101App(App):
 
                             self.push_screen(NewMessageDialog(), _after)
 
-                        elif self.current_screen_name in ("timeline", "discover"):
-                            # Open the new post dialog when on timeline or discover
+                        elif self.current_screen_name in ("timeline", "discover", "following"):
+                            # Open the new post dialog when on timeline, discover, or following
                             try:
                                 def _check_refresh_cmd(result):
                                     if result:
@@ -8212,6 +8274,20 @@ class Proj101App(App):
                                     timeline_feed = self.query_one("#timeline-feed")
                                     items = list(timeline_feed.query(".post-item"))
                                     idx = getattr(timeline_feed, "cursor_position", 0)
+                                    if 0 <= idx < len(items):
+                                        post_item = items[idx]
+                                        post = getattr(post_item, "post", None)
+                                        author = getattr(post, "author", None)
+                                        viewed = _try_view(author)
+                                except Exception:
+                                    pass
+
+                            # Following feed
+                            if not viewed and self.current_screen_name == "following":
+                                try:
+                                    following_feed = self.query_one("#following-feed")
+                                    items = list(following_feed.query(".post-item"))
+                                    idx = getattr(following_feed, "cursor_position", 0)
                                     if 0 <= idx < len(items):
                                         post_item = items[idx]
                                         post = getattr(post_item, "post", None)
@@ -8583,6 +8659,60 @@ class Proj101App(App):
                                         logging.exception("Error toggling like")
                         except Exception:
                             pass
+                    elif self.current_screen_name == "following":
+                        try:
+                            following_feed = self.query_one("#following-feed")
+                            items = list(following_feed.query(".post-item"))
+                            idx = getattr(following_feed, "cursor_position", 0)
+                            if 0 <= idx < len(items):
+                                post_item = items[idx]
+                                post = getattr(post_item, "post", None)
+                                if post:
+                                    try:
+                                        currently_liked = bool(
+                                            getattr(post_item, "liked_by_user", False)
+                                            or getattr(post, "liked_by_user", False)
+                                        )
+                                        if currently_liked:
+                                            try:
+                                                api.unlike_post(post.id)
+                                            except Exception:
+                                                logging.exception("api.unlike_post failed")
+                                            try:
+                                                post_item.liked_by_user = False
+                                            except Exception:
+                                                pass
+                                            try:
+                                                likes = getattr(post_item, "like_count", None) or getattr(post, "likes", None)
+                                                self.post_message(LikeUpdated(post_id=post.id, liked=False, likes=likes, origin=post_item))
+                                            except Exception:
+                                                try:
+                                                    self.app.post_message(LikeUpdated(post_id=post.id, liked=False, likes=likes, origin=post_item))
+                                                except Exception:
+                                                    pass
+                                            self.notify("Post unliked!", severity="success")
+                                        else:
+                                            try:
+                                                api.like_post(post.id)
+                                            except Exception:
+                                                logging.exception("api.like_post failed")
+                                            try:
+                                                post_item.liked_by_user = True
+                                            except Exception:
+                                                pass
+                                            try:
+                                                likes = getattr(post_item, "like_count", None) or getattr(post, "likes", None)
+                                                self.post_message(LikeUpdated(post_id=post.id, liked=True, likes=likes, origin=post_item))
+                                            except Exception:
+                                                try:
+                                                    self.app.post_message(LikeUpdated(post_id=post.id, liked=True, likes=likes, origin=post_item))
+                                                except Exception:
+                                                    pass
+                                            self.notify("Post liked!", severity="success")
+                                    except Exception:
+                                        logging.exception("Error toggling like")
+                        except Exception:
+                            pass
                 elif command == "rp" and False:  # HIDDEN: reposts feature disabled
                     if self.current_screen_name == "timeline":
                         try:
@@ -8795,6 +8925,16 @@ class Proj101App(App):
                                 discover_feed = self.query_one("#discover-feed")
                                 items = list(discover_feed.query(".post-item"))
                                 idx = getattr(discover_feed, "cursor_position", 0)
+                                if 0 <= idx < len(items):
+                                    pi = items[idx]
+                                    return getattr(pi, "post", None), pi
+                            except Exception:
+                                pass
+                        elif screen == "following":
+                            try:
+                                following_feed = self.query_one("#following-feed")
+                                items = list(following_feed.query(".post-item"))
+                                idx = getattr(following_feed, "cursor_position", 0)
                                 if 0 <= idx < len(items):
                                     pi = items[idx]
                                     return getattr(pi, "post", None), pi
