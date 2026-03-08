@@ -4921,13 +4921,15 @@ class SettingsPanel(VerticalScroll):
         if not path:
             return
         try:
-            # Use the avatar container width for accurate column count
+            # Use the avatar container content width for accurate column count
             try:
                 container = self.query_one(".profile-avatar-container")
-                w = container.size.width
+                w = container.content_size.width
+                if w <= 0:
+                    raise ValueError("zero")
             except Exception:
-                w = self.size.width
-            cols = max(15, w - 4) if w > 10 else 40
+                w = self.size.width - 10
+            cols = max(15, w - 2) if w > 10 else 40
             ascii_art = image_to_braille_art(path, cols=cols)
             self._pending_ascii = ascii_art
             try:
@@ -4957,11 +4959,20 @@ class SettingsPanel(VerticalScroll):
         try:
             try:
                 container = self.query_one(".profile-avatar-container")
-                w = container.size.width
+                # content_size excludes border and padding — most accurate
+                w = container.content_size.width
+                if w <= 0:
+                    raise ValueError("zero content width")
             except Exception:
-                w = self.size.width
-            cols = max(15, w - 4) if w > 10 else 40
+                # fallback: outer panel width minus generous margin
+                w = self.size.width - 10
+            cols = max(15, w - 2) if w > 10 else 40  # -2 for ascii-avatar padding
             art = _render_image_url(url, self.app, cols=cols)
+            # Strip leading blank braille (\u2800) from each line so the image
+            # renders flush-left instead of being shifted right by empty dots.
+            art = "\n".join(
+                line.lstrip('\u2800') or '\u2800' for line in art.split("\n")
+            )
             try:
                 avatar = self.query_one("#profile-picture-display", Static)
                 from rich.text import Text
@@ -5568,11 +5579,19 @@ class ProfileView(VerticalScroll):
         try:
             try:
                 container = self.query_one(".profile-avatar-container")
-                w = container.size.width
+                # content_size excludes border and padding — most accurate
+                w = container.content_size.width
+                if w <= 0:
+                    raise ValueError("zero content width")
             except Exception:
-                w = self.size.width
-            cols = max(15, w - 4) if w > 10 else 40
+                w = self.size.width - 10
+            cols = max(15, w - 2) if w > 10 else 40  # -2 for ascii-avatar padding
             art = _render_image_url(url, self.app, cols=cols)
+            # Strip leading blank braille (\u2800) from each line so the image
+            # renders flush-left instead of being shifted right by empty dots.
+            art = "\n".join(
+                line.lstrip('\u2800') or '\u2800' for line in art.split("\n")
+            )
             try:
                 avatar = self.query_one("#profile-picture-display", Static)
                 from rich.text import Text
