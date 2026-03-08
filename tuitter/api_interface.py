@@ -422,10 +422,24 @@ class RealAPI(APIInterface):
     def get_user_profile(self, handle: str) -> User:
         """Fetch canonical user profile from backend.
 
-        Raises requests.HTTPError on non-2xx (404 will be raised by _request).
+        Raises requests.HTTPError on 404.
+        On other non-2xx errors (e.g. follows table not yet migrated on the
+        live server) retries without the viewer param so basic profile data
+        is still returned, just without is_following.
         """
-        data = self._get(f"/users/{handle}", params={"viewer": self.handle})
-        # Backend returns fields compatible with User dataclass
+        import requests as _req
+        try:
+            data = self._get(f"/users/{handle}", params={"viewer": self.handle})
+        except _req.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status == 404:
+                raise
+            # Non-404 server error (e.g. 500 from missing follows table) —
+            # retry without viewer so we still get real name/bio/ascii_pic.
+            data = self._get(f"/users/{handle}")
+        # Strip any keys not in User dataclass to avoid TypeError
+        allowed = {f.name for f in __import__('dataclasses').fields(User)}
+        data = {k: v for k, v in data.items() if k in allowed}
         return User(**data)
 
     def follow_user(self, handle: str) -> bool:

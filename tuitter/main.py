@@ -5320,7 +5320,7 @@ class ProfileView(VerticalScroll):
         yield Static(f"profile | @{username}", classes="panel-header")
 
         # Display the avatar first (match Settings layout: avatar boxed at top-level)
-        avatar_text = self.profile.get("ascii_pic", "")
+        avatar_text = self.profile.get("ascii_pic") or ""
         if not avatar_text or (isinstance(avatar_text, str) and avatar_text.strip() == ""):
             avatar_text = "No profile picture available"
 
@@ -5866,11 +5866,20 @@ class ProfilePanel(VerticalScroll):
                 yield ProfileView(profile=profile, id="profile-view", actions=(not is_own))
                 return
             except Exception as e:
-                # If user not found or API failure, notify and fall back to local minimal profile
+                # Only show "no such user" on a definitive 404
+                _status = None
                 try:
-                    self.app.notify(f"No such user: @{requested_username}", severity="error")
+                    import requests as _req
+                    if isinstance(e, _req.HTTPError) and e.response is not None:
+                        _status = e.response.status_code
                 except Exception:
                     pass
+                if _status == 404:
+                    try:
+                        self.app.notify(f"No such user: @{requested_username}", severity="error")
+                    except Exception:
+                        pass
+                # Fall back to a minimal profile so the screen still renders
                 profile = {
                     "username": requested_username,
                     "display_name": requested_username,
@@ -7233,10 +7242,6 @@ class Proj101App(App):
 
     def action_view_user_profile(self, username: str) -> None:
         """View another user's profile."""
-        # Before switching, do a best-effort existence check. We use
-        # get_user_posts / get_user_comments as lightweight probes; if the
-        # user has neither posts nor comments and is not the current user,
-        # assume the handle does not exist and show a toast.
         try:
             handle = (username or "").strip()
             if not handle:
@@ -7252,22 +7257,30 @@ class Proj101App(App):
                 self.switch_screen("profile", username=handle)
                 return
 
-            # Authoritative existence check via the user profile endpoint
+            # Only block navigation on a definitive 404 (user truly does not exist).
+            # Any other error (network, auth, server) should still proceed so the
+            # profile screen can display what it can.
             try:
                 api.get_user_profile(handle)
-            except Exception:
+            except Exception as _probe_err:
+                _status = None
                 try:
-                    self.notify(f"No such user: @{handle}", severity="error")
+                    import requests as _req
+                    if isinstance(_probe_err, _req.HTTPError) and _probe_err.response is not None:
+                        _status = _probe_err.response.status_code
                 except Exception:
                     pass
-                return
+                if _status == 404:
+                    try:
+                        self.notify(f"No such user: @{handle}", severity="error")
+                    except Exception:
+                        pass
+                    return
+                # Non-404 (network error, auth issue, etc.) — proceed anyway;
+                # ProfilePanel will show whatever it can and notify if needed.
 
-            # User exists: switch to their profile
             self.switch_screen("profile", username=handle)
-            return
         except Exception:
-            # On unexpected failures, fallback to switching to profile but also
-            # notify the user of the error.
             try:
                 self.notify("Failed to open profile (network error)", severity="error")
             except Exception:
