@@ -1101,6 +1101,19 @@ TimelineFeed:focus, DiscoverFeed:focus, NotificationsFeed:focus, ChatView:focus,
     border: solid $danger-border;
 }
 
+/* Horizontal row holding Upload + Remove buttons side by side */
+.file-buttons-row {
+    layout: horizontal;
+    width: 100%;
+    height: auto;
+    margin: 1 0;
+}
+
+.file-buttons-row Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
 /* Make Button widgets for upload/delete share exact sizing so they match visually */
 Button.upload-profile-picture,
 Button.delete-profile-picture {
@@ -1116,8 +1129,16 @@ Button.delete-profile-picture {
     text-style: bold;
 }
 
+/* Inside the horizontal row: narrow margins so both buttons fit side-by-side */
+.file-buttons-row Button.upload-profile-picture,
+.file-buttons-row Button.delete-profile-picture {
+    margin: 0 1;
+    width: 1fr;
+}
+
 /* Ensure delete button keeps danger colors while using the shared sizing */
-Button.delete-profile-picture.danger {
+Button.delete-profile-picture.danger,
+Button.delete-profile-picture.file-btn-danger {
     border: solid $danger-border;
     color: $danger-text;
     background: $danger-bg;
@@ -1134,6 +1155,7 @@ Button.upload-profile-picture.vim-cursor,
 
 Button.delete-profile-picture.vim-cursor,
 .delete-profile-picture.vim-cursor,
+Button.delete-profile-picture.file-btn-danger.vim-cursor,
 Button.delete-profile-picture.vim-row-focus,
 .delete-profile-picture.vim-row-focus {
     background: $danger-bg-hover;
@@ -1159,7 +1181,8 @@ Button.upload-profile-picture:hover,
 
 Button.delete-profile-picture:hover,
 .delete-profile-picture:hover,
-Button.delete-profile-picture.danger:hover {
+Button.delete-profile-picture.danger:hover,
+Button.delete-profile-picture.file-btn-danger:hover {
     background: $danger-bg-hover;
     color: $text-primary;
     border: solid $accent-red-hover;

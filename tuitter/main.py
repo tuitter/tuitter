@@ -4291,6 +4291,7 @@ class MessagesScreen(Container):
 class SettingsPanel(VerticalScroll):
     cursor_position = reactive(0)
     settings_loaded = reactive(False)
+    _file_btn_idx: int = 0  # 0 = Upload, 1 = Remove
 
     def compose(self) -> ComposeResult:
         """Build settings content synchronously so items are real children
@@ -4331,18 +4332,19 @@ class SettingsPanel(VerticalScroll):
             yield Static(avatar_text, id="profile-picture-display", classes="ascii-avatar", markup=False)
         yield avatar_container
 
-        # Upload and Delete buttons placed below the profile picture.
-        # Render as separate rows (vertical) so navigation is simple.
-        yield Button(
-            "Upload file",
-            id="upload-profile-picture",
-            classes="upload-profile-picture save-changes-btn",
-        )
-        yield Button(
-            "Remove file",
-            id="delete-profile-picture",
-            classes="delete-profile-picture danger save-changes-btn",
-        )
+        # Upload and Delete buttons on a single horizontal row.
+        # h/l keys navigate between them when this row has the vim cursor.
+        with Container(id="file-buttons-row", classes="file-buttons-row"):
+            yield Button(
+                "Upload file",
+                id="upload-profile-picture",
+                classes="upload-profile-picture",
+            )
+            yield Button(
+                "Remove file",
+                id="delete-profile-picture",
+                classes="delete-profile-picture file-btn-danger",
+            )
 
         # Account information
         yield Static("── Account ─────────────────────────", classes="settings-section-header")
@@ -4406,8 +4408,7 @@ class SettingsPanel(VerticalScroll):
             try:
                 selectable_classes = [
                     ".profile-avatar-container",
-                    ".upload-profile-picture",
-                    ".delete-profile-picture",
+                    ".file-buttons-row",
                     ".settings-field",
                     ".save-changes-btn",
                     ".oauth-item",
@@ -4477,8 +4478,7 @@ class SettingsPanel(VerticalScroll):
         # We'll consider settings items that can be selected for cursor movement:
         selectable_classes = [
             ".profile-avatar-container",
-            ".upload-profile-picture",
-            ".delete-profile-picture",
+            ".file-buttons-row",
             ".settings-field",
             ".save-changes-btn",
             ".oauth-item",
@@ -4520,6 +4520,16 @@ class SettingsPanel(VerticalScroll):
                             pass
                 except Exception:
                     pass
+                # If leaving the file-buttons-row, clear highlights on both sub-buttons
+                try:
+                    if "file-buttons-row" in (getattr(old_item, "classes", []) or []):
+                        for btn_id in ("#upload-profile-picture", "#delete-profile-picture"):
+                            try:
+                                self.query_one(btn_id, Button).remove_class("vim-cursor")
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
 
         # Add cursor to new position
         if new_position < len(items):
@@ -4546,6 +4556,12 @@ class SettingsPanel(VerticalScroll):
                         pass
             except Exception:
                 pass
+            # If landing on the file-buttons-row, highlight the active sub-button
+            try:
+                if "file-buttons-row" in (getattr(new_item, "classes", []) or []):
+                    self._update_file_btn_highlight()
+            except Exception:
+                pass
             # Scroll so the selected item is visible and keep focus on the panel
             self.scroll_to_widget(new_item)
             try:
@@ -4560,8 +4576,7 @@ class SettingsPanel(VerticalScroll):
             return
         selectable_classes = [
             ".profile-avatar-container",
-            ".upload-profile-picture",
-            ".delete-profile-picture",
+            ".file-buttons-row",
             ".settings-field",
             ".save-changes-btn",
             ".oauth-item",
@@ -4600,8 +4615,7 @@ class SettingsPanel(VerticalScroll):
             return
         selectable_classes = [
             ".profile-avatar-container",
-            ".upload-profile-picture",
-            ".delete-profile-picture",
+            ".file-buttons-row",
             ".settings-field",
             ".save-changes-btn",
             ".oauth-item",
@@ -4642,8 +4656,7 @@ class SettingsPanel(VerticalScroll):
             return
         selectable_classes = [
             ".profile-avatar-container",
-            ".upload-profile-picture",
-            ".delete-profile-picture",
+            ".file-buttons-row",
             ".settings-field",
             ".save-changes-btn",
             ".oauth-item",
@@ -4663,6 +4676,14 @@ class SettingsPanel(VerticalScroll):
         if 0 <= self.cursor_position < len(items):
             item = items[self.cursor_position]
             try:
+                # Special case: file-buttons-row — press the active sub-button
+                if "file-buttons-row" in (getattr(item, "classes", []) or []):
+                    btn_id = "upload-profile-picture" if self._file_btn_idx == 0 else "delete-profile-picture"
+                    try:
+                        self.query_one(f"#{btn_id}", Button).press()
+                    except Exception:
+                        pass
+                    return
                 # If the item is a Button, call its press method to trigger handlers
                 if hasattr(item, "press"):
                     item.press()
@@ -4698,8 +4719,7 @@ class SettingsPanel(VerticalScroll):
 
         selectable_classes = [
             ".profile-avatar-container",
-            ".upload-profile-picture",
-            ".delete-profile-picture",
+            ".file-buttons-row",
             ".settings-field",
             ".save-changes-btn",
             ".oauth-item",
@@ -4746,6 +4766,76 @@ class SettingsPanel(VerticalScroll):
                 return
         except Exception:
             pass
+
+    def _update_file_btn_highlight(self) -> None:
+        """Apply vim-cursor to the active button inside file-buttons-row."""
+        try:
+            upload = self.query_one("#upload-profile-picture", Button)
+            remove = self.query_one("#delete-profile-picture", Button)
+            if self._file_btn_idx == 0:
+                upload.add_class("vim-cursor")
+                remove.remove_class("vim-cursor")
+            else:
+                remove.add_class("vim-cursor")
+                upload.remove_class("vim-cursor")
+        except Exception:
+            pass
+
+    def key_h(self) -> None:
+        """Navigate left to Upload button when cursor is on file-buttons-row."""
+        if self.app.command_mode:
+            return
+        selectable_classes = [
+            ".profile-avatar-container",
+            ".file-buttons-row",
+            ".settings-field",
+            ".save-changes-btn",
+            ".oauth-item",
+            ".checkbox-item",
+            ".danger",
+        ]
+        items = []
+        seen = set()
+        for cls in selectable_classes:
+            for w in list(self.query(cls)):
+                ident = getattr(w, "id", None) or id(w)
+                if ident in seen:
+                    continue
+                seen.add(ident)
+                items.append(w)
+        if 0 <= self.cursor_position < len(items):
+            item = items[self.cursor_position]
+            if "file-buttons-row" in (getattr(item, "classes", []) or []):
+                self._file_btn_idx = 0
+                self._update_file_btn_highlight()
+
+    def key_l(self) -> None:
+        """Navigate right to Remove button when cursor is on file-buttons-row."""
+        if self.app.command_mode:
+            return
+        selectable_classes = [
+            ".profile-avatar-container",
+            ".file-buttons-row",
+            ".settings-field",
+            ".save-changes-btn",
+            ".oauth-item",
+            ".checkbox-item",
+            ".danger",
+        ]
+        items = []
+        seen = set()
+        for cls in selectable_classes:
+            for w in list(self.query(cls)):
+                ident = getattr(w, "id", None) or id(w)
+                if ident in seen:
+                    continue
+                seen.add(ident)
+                items.append(w)
+        if 0 <= self.cursor_position < len(items):
+            item = items[self.cursor_position]
+            if "file-buttons-row" in (getattr(item, "classes", []) or []):
+                self._file_btn_idx = 1
+                self._update_file_btn_highlight()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = getattr(event.button, "id", "")
