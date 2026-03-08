@@ -4428,7 +4428,6 @@ class SettingsPanel(VerticalScroll):
     settings_loaded = reactive(False)
     _file_btn_idx: int = 0  # 0 = Upload, 1 = Remove
     _profile_pic_path: str = ""  # path to the locally-selected image file
-    _profile_pic_url: str = ""   # R2 URL of the saved profile picture
 
     def compose(self) -> ComposeResult:
         """Build settings content synchronously so items are real children
@@ -4527,12 +4526,12 @@ class SettingsPanel(VerticalScroll):
                     avatar.update(new_avatar)
                 except Exception:
                     pass
-                # If a saved pic URL exists, re-render at current terminal width
+                # Restore the saved local path so resize re-renders correctly
                 try:
-                    saved_url = getattr(latest, "pic_url", "") or ""
-                    if saved_url:
-                        self._profile_pic_url = saved_url
-                        self.call_after_refresh(lambda: self._render_profile_pic_from_url(self._profile_pic_url))
+                    saved_path = getattr(latest, "pic_url", "") or ""
+                    if saved_path and __import__('os.path', fromlist=['isfile']).isfile(saved_path):
+                        self._profile_pic_path = saved_path
+                        self.call_after_refresh(self._render_profile_pic)
                 except Exception:
                     pass
             except Exception:
@@ -4943,34 +4942,8 @@ class SettingsPanel(VerticalScroll):
 
     def on_resize(self) -> None:
         """Re-render profile picture preview when the terminal is resized."""
-        # Prefer URL-based re-render (identical to PostItem); fall back to local path
-        url = getattr(self, "_profile_pic_url", "")
-        if url:
-            self.call_after_refresh(lambda: self._render_profile_pic_from_url(url))
-        elif getattr(self, "_profile_pic_path", ""):
+        if getattr(self, "_profile_pic_path", ""):
             self.call_after_refresh(self._render_profile_pic)
-
-    def _render_profile_pic_from_url(self, url: str) -> None:
-        """Re-render the profile picture from an R2 URL at the current terminal
-        width.  Mirrors PostItem._fill_image_placeholders exactly."""
-        if not url:
-            return
-        try:
-            try:
-                container = self.query_one(".profile-avatar-container")
-                w = container.size.width
-            except Exception:
-                w = self.size.width
-            cols = max(15, w - 4) if w > 10 else 40
-            art = _render_image_url(url, self.app, cols=cols)
-            try:
-                avatar = self.query_one("#profile-picture-display", Static)
-                from rich.text import Text
-                avatar.update(Text(art))
-            except Exception:
-                pass
-        except Exception:
-            pass
 
     def _update_file_btn_highlight(self) -> None:
         """Apply vim-cursor to the active button inside file-buttons-row."""
@@ -5224,17 +5197,10 @@ class SettingsPanel(VerticalScroll):
 
             # Apply pending ascii if present (allow empty string to clear).
             # Re-render from path first so we always save at current terminal width.
-            # Also upload the original image to R2 so future resize can re-render from URL.
+            # Also store the local path as pic_url so future sessions can re-render.
             try:
                 if getattr(self, "_profile_pic_path", ""):
-                    # Upload original image to R2 and store URL for dynamic resize
-                    try:
-                        uploaded_url = api.upload_image(self._profile_pic_path)
-                        if uploaded_url:
-                            settings.pic_url = uploaded_url
-                            self._profile_pic_url = uploaded_url
-                    except Exception:
-                        pass
+                    settings.pic_url = self._profile_pic_path
                     try:
                         container = self.query_one(".profile-avatar-container")
                         w = container.size.width
@@ -5451,11 +5417,11 @@ class ProfileView(VerticalScroll):
                 self._update_cursor()
             except Exception:
                 pass
-            # If the profile has a pic_url, re-render avatar at actual terminal width
+            # If the profile has a pic_url (local path), restore and re-render
             try:
-                pic_url = self.profile.get("pic_url", "") or ""
-                if pic_url:
-                    self.call_after_refresh(lambda u=pic_url: self._render_avatar_from_url(u))
+                pic_path = self.profile.get("pic_url", "") or ""
+                if pic_path and __import__('os.path', fromlist=['isfile']).isfile(pic_path):
+                    self.call_after_refresh(lambda p=pic_path: self._render_avatar_from_path(p))
             except Exception:
                 pass
         except Exception:
@@ -5546,11 +5512,12 @@ class ProfileView(VerticalScroll):
             pass
 
     def _refresh_avatar_display(self) -> None:
-        """Re-draw the avatar at current width. Uses pic_url (URL-based re-render
-        like PostItem) when available, otherwise falls back to stored ascii_pic."""
-        pic_url = self.profile.get("pic_url", "") or ""
-        if pic_url:
-            self._render_avatar_from_url(pic_url)
+        """Re-draw the avatar at current width from local path if available,
+        otherwise fall back to stored ascii_pic string."""
+        pic_path = self.profile.get("pic_url", "") or ""
+        import os.path as _osp
+        if pic_path and _osp.isfile(pic_path):
+            self._render_avatar_from_path(pic_path)
             return
         try:
             avatar = self.query_one("#profile-picture-display", Static)
@@ -5562,10 +5529,10 @@ class ProfileView(VerticalScroll):
         except Exception:
             pass
 
-    def _render_avatar_from_url(self, url: str) -> None:
-        """Re-render the profile picture from an R2 URL at the current terminal
-        width.  Mirrors PostItem._fill_image_placeholders exactly."""
-        if not url:
+    def _render_avatar_from_path(self, path: str) -> None:
+        """Re-render the profile picture from a local file at the current terminal
+        width, using image_to_braille_art — identical to SettingsPanel._render_profile_pic."""
+        if not path:
             return
         try:
             try:
@@ -5574,11 +5541,10 @@ class ProfileView(VerticalScroll):
             except Exception:
                 w = self.size.width
             cols = max(15, w - 4) if w > 10 else 40
-            art = _render_image_url(url, self.app, cols=cols)
+            art = image_to_braille_art(path, cols=cols)
             try:
                 avatar = self.query_one("#profile-picture-display", Static)
-                from rich.text import Text
-                avatar.update(Text(art))
+                avatar.update(art)
             except Exception:
                 pass
         except Exception:
@@ -5586,11 +5552,7 @@ class ProfileView(VerticalScroll):
 
     def on_resize(self) -> None:
         """Refresh avatar display when the terminal is resized."""
-        pic_url = self.profile.get("pic_url", "") or ""
-        if pic_url:
-            self.call_after_refresh(lambda u=pic_url: self._render_avatar_from_url(u))
-        else:
-            self.call_after_refresh(self._refresh_avatar_display)
+        self.call_after_refresh(self._refresh_avatar_display)
 
     def _check_scroll_load(self) -> None:
         """Check if we need to load more posts based on scroll position"""
