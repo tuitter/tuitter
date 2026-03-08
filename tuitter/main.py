@@ -4420,6 +4420,53 @@ class MessagesScreen(Container):
             self._switching = False
 
 
+class AvatarWidget(Static):
+    """Leaf widget that renders a profile picture as braille art at its own width.
+
+    Because this is a leaf (no nested children), self.size.width is always the
+    real constrained value — exactly like PostItem.  on_mount and on_resize use
+    call_after_refresh so the first render fires after Textual's layout pass.
+    """
+
+    def __init__(self, pic_url: str = "", ascii_fallback: str = "", **kwargs):
+        super().__init__("\u2800", markup=False, **kwargs)  # blank braille placeholder
+        self._pic_url = pic_url
+        self._ascii_fallback = ascii_fallback
+
+    def on_mount(self) -> None:
+        self.call_after_refresh(self._render)
+
+    def on_resize(self) -> None:
+        self.call_after_refresh(self._render)
+
+    def _render(self) -> None:
+        w = self.size.width
+        if not w:
+            return
+        if self._pic_url:
+            from rich.text import Text
+            cols = max(15, w - 4)
+            art = _render_image_url(self._pic_url, self.app, cols=cols)
+            self.update(Text(art))
+        elif self._ascii_fallback and self._ascii_fallback.strip():
+            self.update(self._ascii_fallback)
+        else:
+            self.update("No profile picture available")
+
+    def set_url(self, pic_url: str, ascii_fallback: str = "") -> None:
+        """Update the picture URL (and optional fallback) then re-render."""
+        self._pic_url = pic_url
+        if ascii_fallback:
+            self._ascii_fallback = ascii_fallback
+        self.call_after_refresh(self._render)
+
+    def clear(self) -> None:
+        """Reset to no-picture state."""
+        self._pic_url = ""
+        self._ascii_fallback = ""
+        self.update("No profile picture available")
+
+
 class SettingsPanel(VerticalScroll):
     cursor_position = reactive(0)
     settings_loaded = reactive(False)
@@ -4453,17 +4500,16 @@ class SettingsPanel(VerticalScroll):
         # Profile Picture section
         yield Static("── Profile Picture ──────────────────", classes="settings-section-header")
         # Display current ascii avatar if available.
-        avatar_text = getattr(settings, "ascii_pic", "") if settings else "(not available)"
-        if not avatar_text or (isinstance(avatar_text, str) and avatar_text.strip() == ""):
-            avatar_text = "No profile picture available"
-
+        # Use a blank placeholder so compose() never stretches the container
+        # with a pre-rendered wide ascii_pic string.  on_mount loads the real
+        # content after the layout engine has settled and self.size.width is correct.
         avatar_container = Container(classes="profile-avatar-container")
         try:
             avatar_container.border_title = "Profile Picture"
         except Exception:
             pass
         with avatar_container:
-            yield Static(avatar_text, id="profile-picture-display", classes="ascii-avatar", markup=False)
+            yield AvatarWidget("", "", id="profile-picture-display", classes="ascii-avatar")
         yield avatar_container
 
         # Upload and Delete buttons on a single horizontal row.
@@ -4515,21 +4561,11 @@ class SettingsPanel(VerticalScroll):
             # Ensure we have the latest settings; compose built a best-effort view
             try:
                 latest = api.get_user_settings()
-                # If compose used a placeholder, update widgets now
+                saved_url = getattr(latest, "pic_url", "") or ""
+                ascii_pic = getattr(latest, "ascii_pic", "") or ""
                 try:
-                    avatar = self.query_one("#profile-picture-display", Static)
-                    new_avatar = getattr(latest, "ascii_pic", "")
-                    if not new_avatar or (isinstance(new_avatar, str) and new_avatar.strip() == ""):
-                        new_avatar = "No profile picture available"
-                    avatar.update(new_avatar)
-                except Exception:
-                    pass
-                # Restore the saved R2 URL so resize re-renders at actual width
-                try:
-                    saved_url = getattr(latest, "pic_url", "") or ""
-                    if saved_url:
-                        self._profile_pic_url = saved_url
-                        self.call_after_refresh(lambda u=saved_url: self._render_profile_pic_from_url(u))
+                    avatar_w = self.query_one("#profile-picture-display", AvatarWidget)
+                    avatar_w.set_url(saved_url, ascii_pic)
                 except Exception:
                     pass
             except Exception:
@@ -4918,20 +4954,19 @@ class SettingsPanel(VerticalScroll):
         if not path:
             return
         try:
-            # Use the avatar container content width for accurate column count
+            # Use the SettingsPanel's own laid-out width (same pattern as PostItem).
             try:
-                container = self.query_one(".profile-avatar-container")
-                w = container.content_size.width
+                w = self.size.width
                 if w <= 0:
                     raise ValueError("zero")
             except Exception:
-                w = self.size.width - 10
-            cols = max(15, w - 2) if w > 10 else 40
+                w = 80
+            cols = max(15, w - 8)
             ascii_art = image_to_braille_art(path, cols=cols)
             self._pending_ascii = ascii_art
             try:
-                avatar = self.query_one("#profile-picture-display", Static)
-                avatar.update(ascii_art)
+                avatar_w = self.query_one("#profile-picture-display", AvatarWidget)
+                avatar_w.set_url("", ascii_art)
             except Exception:
                 pass
         except Exception:
@@ -4941,38 +4976,10 @@ class SettingsPanel(VerticalScroll):
                 pass
 
     def on_resize(self) -> None:
-        """Re-render profile picture preview when the terminal is resized."""
-        url = getattr(self, "_profile_pic_url", "")
-        if url:
-            self.call_after_refresh(lambda u=url: self._render_profile_pic_from_url(u))
-        elif getattr(self, "_profile_pic_path", ""):
+        """Re-render local-path preview when the terminal is resized.
+        R2 URL renders are handled automatically by AvatarWidget.on_resize."""
+        if getattr(self, "_profile_pic_path", ""):
             self.call_after_refresh(self._render_profile_pic)
-
-    def _render_profile_pic_from_url(self, url: str) -> None:
-        """Re-render the profile picture from an R2 URL at the current terminal
-        width.  Mirrors PostItem._fill_image_placeholders exactly."""
-        if not url:
-            return
-        try:
-            try:
-                container = self.query_one(".profile-avatar-container")
-                # content_size excludes border and padding — most accurate
-                w = container.content_size.width
-                if w <= 0:
-                    raise ValueError("zero content width")
-            except Exception:
-                # fallback: outer panel width minus generous margin
-                w = self.size.width - 10
-            cols = max(15, w - 2) if w > 10 else 40  # -2 for ascii-avatar padding
-            art = _render_image_url(url, self.app, cols=cols)
-            try:
-                avatar = self.query_one("#profile-picture-display", Static)
-                from rich.text import Text
-                avatar.update(Text(art))
-            except Exception:
-                pass
-        except Exception:
-            pass
 
     def _update_file_btn_highlight(self) -> None:
         """Apply vim-cursor to the active button inside file-buttons-row."""
@@ -5088,8 +5095,7 @@ class SettingsPanel(VerticalScroll):
                 except Exception:
                     self._pending_ascii = ""
                 try:
-                    avatar = self.query_one("#profile-picture-display", Static)
-                    avatar.update("No profile picture available")
+                    self.query_one("#profile-picture-display", AvatarWidget).clear()
                 except Exception:
                     pass
                 try:
@@ -5265,12 +5271,10 @@ class SettingsPanel(VerticalScroll):
             try:
                 api.update_user_settings(settings)
                 try:
-                    # Update avatar display to reflect saved ascii
-                    avatar = self.query_one("#profile-picture-display", Static)
-                    if getattr(settings, "ascii_pic", "") and isinstance(settings.ascii_pic, str) and settings.ascii_pic.strip() != "":
-                        avatar.update(Text("\n" + settings.ascii_pic))
-                    else:
-                        avatar.update("No profile picture available")
+                    # Update avatar display to reflect saved url / ascii
+                    saved_url = getattr(settings, "pic_url", "") or ""
+                    saved_ascii = getattr(settings, "ascii_pic", "") or ""
+                    self.query_one("#profile-picture-display", AvatarWidget).set_url(saved_url, saved_ascii)
                 except Exception:
                     pass
                 try:
@@ -5364,18 +5368,16 @@ class ProfileView(VerticalScroll):
         username = self.profile.get("username", "")
         yield Static(f"profile | @{username}", classes="panel-header")
 
-        # Display the avatar first (match Settings layout: avatar boxed at top-level)
-        avatar_text = self.profile.get("ascii_pic") or ""
-        if not avatar_text or (isinstance(avatar_text, str) and avatar_text.strip() == ""):
-            avatar_text = "No profile picture available"
-
+        # Use a blank placeholder so compose() never stretches the container
+        # with a pre-rendered wide ascii_pic string.  on_mount loads the real
+        # content after the layout engine has settled and self.size.width is correct.
         avatar_container = Container(classes="profile-avatar-container")
         try:
             avatar_container.border_title = "Profile Picture"
         except Exception:
             pass
         with avatar_container:
-            yield Static(avatar_text, id="profile-picture-display", classes="ascii-avatar", markup=False)
+            yield AvatarWidget(self.profile.get("pic_url", ""), self.profile.get("ascii_pic", ""), id="profile-picture-display", classes="ascii-avatar")
         yield avatar_container
 
         # Then render the profile details in a centered container (username, stats, bio, actions)
@@ -5450,13 +5452,6 @@ class ProfileView(VerticalScroll):
                 self.cursor_row = 0
                 self.cursor_col = 0
                 self._update_cursor()
-            except Exception:
-                pass
-            # If the profile has a pic_url (R2 URL), re-render at actual terminal width
-            try:
-                pic_url = self.profile.get("pic_url", "") or ""
-                if pic_url:
-                    self.call_after_refresh(lambda u=pic_url: self._render_avatar_from_url(u))
             except Exception:
                 pass
         except Exception:
@@ -5546,52 +5541,6 @@ class ProfileView(VerticalScroll):
         except Exception:
             pass
 
-    def _refresh_avatar_display(self) -> None:
-        """Re-draw the avatar at current width from R2 URL if available,
-        otherwise fall back to stored ascii_pic string."""
-        pic_url = self.profile.get("pic_url", "") or ""
-        if pic_url:
-            self._render_avatar_from_url(pic_url)
-            return
-        try:
-            avatar = self.query_one("#profile-picture-display", Static)
-            text = self.profile.get("ascii_pic") or ""
-            if text.strip():
-                avatar.update(text)
-            else:
-                avatar.update("No profile picture available")
-        except Exception:
-            pass
-
-    def _render_avatar_from_url(self, url: str) -> None:
-        """Re-render the profile picture from an R2 URL at the current terminal
-        width.  Mirrors PostItem._fill_image_placeholders exactly."""
-        if not url:
-            return
-        try:
-            try:
-                container = self.query_one(".profile-avatar-container")
-                # content_size excludes border and padding — most accurate
-                w = container.content_size.width
-                if w <= 0:
-                    raise ValueError("zero content width")
-            except Exception:
-                w = self.size.width - 10
-            cols = max(15, w - 2) if w > 10 else 40  # -2 for ascii-avatar padding
-            art = _render_image_url(url, self.app, cols=cols)
-            try:
-                avatar = self.query_one("#profile-picture-display", Static)
-                from rich.text import Text
-                avatar.update(Text(art))
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-    def on_resize(self) -> None:
-        """Refresh avatar display when the terminal is resized."""
-        self.call_after_refresh(self._refresh_avatar_display)
-
     def _check_scroll_load(self) -> None:
         """Check if we need to load more posts based on scroll position"""
         try:
@@ -5616,7 +5565,7 @@ class ProfileView(VerticalScroll):
             # The avatar is inside a Container; prefer the displayed Static
             avatar_container = self.query_one(".profile-avatar-container", Container)
             try:
-                avatar = avatar_container.query_one("#profile-picture-display", Static)
+                avatar = avatar_container.query_one("#profile-picture-display", AvatarWidget)
             except Exception:
                 avatar = avatar_container
             rows.append([avatar])
