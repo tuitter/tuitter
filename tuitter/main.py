@@ -4564,12 +4564,12 @@ class AvatarWidget(Static):
         self._ascii_fallback = ascii_fallback
 
     def on_mount(self) -> None:
-        self.call_after_refresh(self._render)
+        self.call_after_refresh(self._do_render)
 
     def on_resize(self) -> None:
-        self.call_after_refresh(self._render)
+        self.call_after_refresh(self._do_render)
 
-    def _render(self) -> None:
+    def _do_render(self) -> None:
         w = self.size.width
         if not w:
             return
@@ -4588,7 +4588,7 @@ class AvatarWidget(Static):
         self._pic_url = pic_url
         if ascii_fallback:
             self._ascii_fallback = ascii_fallback
-        self.call_after_refresh(self._render)
+        self.call_after_refresh(self._do_render)
 
     def clear(self) -> None:
         """Reset to no-picture state."""
