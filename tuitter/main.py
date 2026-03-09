@@ -6639,34 +6639,31 @@ class DraftsPanel(VerticalScroll):
 
     def _create_draft_box(self, draft: Dict, index: int) -> Container:
         """Create a nice box for displaying a draft."""
-        box = Container(classes="draft-box")
-        box.border = "round"
-        box.border_title = f"Draft {index + 1}"
-
-        # Top header row: timestamp and small meta
-        header = Container(classes="draft-header", id=f"draft-header-{index}")
-        header.styles.layout = "horizontal"
-        header.styles.width = "100%"
         try:
             time_ago = format_time_ago(draft.get("timestamp"))
         except Exception:
             time_ago = ""
-        header.mount(Static(f"{time_ago}", classes="draft-timestamp"))
-        # Attachments (we'll summarize below; don't include attachment content in preview)
-        attachments = draft.get("attachments", [])
 
-        box.mount(header)
+        # Top header row: timestamp and small meta
+        header = Container(
+            Static(f"{time_ago}", classes="draft-timestamp"),
+            classes="draft-header",
+            id=f"draft-header-{index}"
+        )
+        header.styles.layout = "horizontal"
+        header.styles.width = "100%"
 
-        # Content preview block (wider than sidebar preview)
+        # Content preview block
         content = draft.get("content", "")
         preview = content if len(content) <= 320 else content[:320] + "..."
-        box.mount(Static(preview, classes="draft-content-preview"))
+        preview_widget = Static(preview, classes="draft-content-preview")
 
-        # Attachments summary (concise, describe photos separately)
+        # Attachments summary
+        attachments = draft.get("attachments", [])
+        attachment_widget = None
         if attachments and len(attachments) > 0:
             try:
                 total = len(attachments)
-                # attachments are stored as tuples (type, payload/path)
                 photo_types = ("photo", "ascii_photo")
                 photo_count = sum(1 for a in attachments if a and a[0] in photo_types)
                 other_count = total - photo_count
@@ -6686,20 +6683,21 @@ class DraftsPanel(VerticalScroll):
             except Exception:
                 summary = f"{len(attachments)} attachment(s)"
 
-            box.mount(Static(summary, classes="draft-attachments-info"))
+            attachment_widget = Static(summary, classes="draft-attachments-info")
 
-        # Action buttons row - emphasize primary for Open
-        actions_container = Container(classes="draft-actions")
-        open_btn = Button("Open", id=f"open-draft-{index}", classes="draft-action-btn")
+        # Action buttons row
+        open_btn = Button("Open", id=f"open-draft-{index}", classes="draft-action-btn", variant="primary")
         delete_btn = Button("Delete", id=f"delete-draft-{index}", classes="draft-action-btn-delete")
-        # Make Open a primary-looking button when possible
-        try:
-            open_btn.variant = "primary"
-        except Exception:
-            pass
-        actions_container.mount(open_btn)
-        actions_container.mount(delete_btn)
-        box.mount(actions_container)
+        actions_container = Container(open_btn, delete_btn, classes="draft-actions")
+
+        children = [header, preview_widget]
+        if attachment_widget:
+            children.append(attachment_widget)
+        children.append(actions_container)
+
+        box = Container(*children, classes="draft-box")
+        box.border = "round"
+        box.border_title = f"Draft {index + 1}"
 
         return box
 
@@ -7419,46 +7417,55 @@ class Proj101App(App):
 
     def _focus_main_content_for_screen(self, screen_name: str) -> None:
         """Focus the main content feed/panel for the current screen"""
-        try:
-            # Map screen names to their main content widget IDs
-            content_map = {
-                "timeline": "#timeline-feed",
-                "discover": "#discover-feed",
-                "notifications": "#notifications-feed",
-                "messages": "#chat",
-                "profile": "#profile-panel",
-                "settings": "#settings-panel",
-                "following": "#following-feed",
-                "drafts": "#drafts-panel",
-                # Backwards-compat: treat any legacy 'user_profile' key as profile panel
-                "user_profile": "#profile-panel",
-            }
+        def do_focus():
+            try:
+                # Map screen names to their main content widget IDs
+                content_map = {
+                    "timeline": "#timeline-feed",
+                    "discover": "#discover-feed",
+                    "notifications": "#notifications-feed",
+                    "messages": "#chat",
+                    "profile": "#profile-panel",
+                    "settings": "#settings-panel",
+                    "following": "#following-feed",
+                    "drafts": "#drafts-panel",
+                    # Backwards-compat: treat any legacy 'user_profile' key as profile panel
+                    "user_profile": "#profile-panel",
+                }
 
-            if screen_name in content_map:
-                widget_id = content_map[screen_name]
-                widget = self.query_one(widget_id)
-                widget.focus()
+                if screen_name in content_map:
+                    widget_id = content_map[screen_name]
+                    widget = self.query_one(widget_id)
+                    widget.focus()
 
-                # Reset cursor position to 0 for feeds with cursor navigation,
-                # except when we've just closed an embedded comment panel and
-                # restored the feed's cursor — in that case preserve the restored value.
-                if hasattr(widget, "cursor_position"):
-                    try:
-                        if getattr(self, "_just_closed_comment_panel", False):
-                            # Clear the flag and do not overwrite restored cursor
+                    # Reset cursor position to 0 for feeds with cursor navigation,
+                    # except when we've just closed an embedded comment panel and
+                    # restored the feed's cursor — in that case preserve the restored value.
+                    if hasattr(widget, "cursor_position"):
+                        try:
+                            if getattr(self, "_just_closed_comment_panel", False):
+                                # Clear the flag and do not overwrite restored cursor
+                                try:
+                                    self._just_closed_comment_panel = False
+                                except Exception:
+                                    pass
+                            else:
+                                widget.cursor_position = 0
+                        except Exception:
                             try:
-                                self._just_closed_comment_panel = False
+                                widget.cursor_position = 0
                             except Exception:
                                 pass
-                        else:
-                            widget.cursor_position = 0
-                    except Exception:
-                        try:
-                            widget.cursor_position = 0
-                        except Exception:
-                            pass
+            except Exception:
+                pass
+
+        try:
+            self.call_after_refresh(do_focus)
         except Exception:
-            pass
+            try:
+                self.set_timer(0.05, do_focus)
+            except Exception:
+                do_focus()
 
     def action_quit(self) -> None:
         # Clean up OAuth server if on auth screen
