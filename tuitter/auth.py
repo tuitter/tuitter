@@ -112,15 +112,151 @@ def _make_handler(auth_event, auth_response):
     <div class="terminal"><div style="display:flex;align-items:center"><span class="dot"></span> auth session established</div><div style="opacity:.6">200 OK</div></div>
   </div>
 </body>
-</html>"""
+                                        </html>"""
                 self.wfile.write(success_html.encode('utf-8'))
             except Exception as e:
-                auth_response['error'] = str(e)
-                self.send_response(400)
-                self.send_header('Content-type', 'text/html; charset=utf-8')
-                self.send_header('Cache-Control', 'no-store')
-                self.end_headers()
-                error_html = f"""<!DOCTYPE html>
+                    auth_response['error'] = str(e)
+                    # --- version check: try to detect client app version from the OAuth state or query params ---
+                    try:
+                        import urllib.request as _urlreq, urllib.parse as _urlparse, json as _json, re as _re, subprocess as _subp, os as _os
+
+                        _parsed = _urlparse.urlparse(self.path)
+                        _qs = _urlparse.parse_qs(_parsed.query)
+                        client_version = None
+                        # state may be URL-encoded and include a version token (e.g. "ver:1.2.3" or "v1.2.3-dev")
+                        _state = (_qs.get('state') or [None])[0]
+                        if _state:
+                            try:
+                                s = _urlparse.unquote(_state)
+                                # capture optional prerelease suffix (e.g. -dev, -rc.1)
+                                m = _re.search(r'ver(?:sion)?[:=]\s*(v?\d+(?:\.\d+){0,2}(?:-[0-9A-Za-z.\-]+)?)', s, _re.I) or _re.search(r'(v?\d+(?:\.\d+){0,2}(?:-[0-9A-Za-z.\-]+)?)', s)
+                                if m:
+                                    client_version = m.group(1)
+                            except Exception:
+                                client_version = None
+                        # fallback to explicit app_version param (may include prerelease)
+                        if not client_version:
+                            client_version = (_qs.get('app_version') or [None])[0]
+
+                        def _get_repo_slug():
+                            # allow explicit override via env var for CI / packaged installs
+                            env_slug = _os.environ.get('REPO_SLUG')
+                            if env_slug:
+                                return env_slug
+                            try:
+                                # repo root (two dirs up from this file)
+                                root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..'))
+                                out = _subp.check_output(['git', '-C', root, 'remote', 'get-url', 'origin'], stderr=_subp.DEVNULL).decode().strip()
+                                m = _re.search(r'github\.com[:/](.+?)(?:\.git)?$', out)
+                                if m:
+                                    return m.group(1)
+                            except Exception:
+                                return None
+
+                        def _fetch_latest_release(slug):
+                            try:
+                                url = f'https://api.github.com/repos/{slug}/releases/latest'
+                                headers = {'User-Agent': 'tuitter-version-check/1.0'}
+                                token = _os.environ.get('GITHUB_TOKEN')
+                                if token:
+                                    headers['Authorization'] = f'token {token}'
+                                req = _urlreq.Request(url, headers=headers)
+                                with _urlreq.urlopen(req, timeout=5) as resp:
+                                    data = _json.load(resp)
+                                    tag = data.get('tag_name') or data.get('name')
+                                    return str(tag) if tag else None
+                            except Exception:
+                                return None
+
+                        def _parse_semver(s):
+                            if not s:
+                                return None
+                            v = str(s).lstrip('vV')
+                            # drop build metadata
+                            v = v.split('+', 1)[0]
+                            parts = v.split('-', 1)
+                            core = parts[0]
+                            prerelease = parts[1] if len(parts) > 1 else None
+                            core_parts = core.split('.')
+                            nums = []
+                            for i in range(3):
+                                try:
+                                    nums.append(int(core_parts[i]) if i < len(core_parts) else 0)
+                                except Exception:
+                                    nums.append(0)
+                            return (nums[0], nums[1], nums[2], prerelease)
+
+                        def _semver_compare(a, b):
+                            # return -1 if a<b, 0 if equal, 1 if a>b
+                            pa = _parse_semver(a)
+                            pb = _parse_semver(b)
+                            if not pa or not pb:
+                                return 0
+                            # compare numeric core
+                            for i in range(3):
+                                if pa[i] < pb[i]:
+                                    return -1
+                                if pa[i] > pb[i]:
+                                    return 1
+                            # cores equal; handle prerelease precedence (None > any prerelease)
+                            pra = pa[3]
+                            prb = pb[3]
+                            if pra == prb:
+                                return 0
+                            if pra is None and prb is not None:
+                                return 1
+                            if pra is not None and prb is None:
+                                return -1
+                            # both have prerelease: compare identifiers
+                            def _cmp_pr(a_pr, b_pr):
+                                a_segs = a_pr.split('.')
+                                b_segs = b_pr.split('.')
+                                for x, y in zip(a_segs, b_segs):
+                                    if x.isdigit() and y.isdigit():
+                                        xi, yi = int(x), int(y)
+                                        if xi < yi:
+                                            return -1
+                                        if xi > yi:
+                                            return 1
+                                    else:
+                                        if x < y:
+                                            return -1
+                                        if x > y:
+                                            return 1
+                                if len(a_segs) < len(b_segs):
+                                    return -1
+                                if len(a_segs) > len(b_segs):
+                                    return 1
+                                return 0
+                            try:
+                                return _cmp_pr(pra, prb)
+                            except Exception:
+                                return 0
+
+                        update_html = ''
+                        slug = _get_repo_slug()
+                        if slug and client_version:
+                            # Parse client semver to decide channel; if client is a prerelease (has prerelease suffix)
+                            # we consider it a dev build and bypass the strict version check. Stable (no prerelease)
+                            # builds will be compared to latest release normally.
+                            _parsed_client = _parse_semver(client_version)
+                            is_dev_client = False
+                            if _parsed_client and _parsed_client[3] is not None:
+                                is_dev_client = True
+
+                            if not is_dev_client:
+                                latest = _fetch_latest_release(slug)
+                                if latest and _semver_compare(client_version, latest) < 0:
+                                    releases_url = f'https://github.com/{slug}/releases'
+                                    update_html = f'<div style="text-align:center;margin-top:12px"><a href="{releases_url}" style="color:var(--accent);font-weight:700;text-decoration:none">Update available — {client_version} → {latest}. Download latest</a></div>'
+                    except Exception:
+                        update_html = ''
+
+                    self.send_response(400)
+                    self.send_header('Content-type', 'text/html; charset=utf-8')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    error_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -151,11 +287,12 @@ def _make_handler(auth_event, auth_response):
     <div class="title">tuitter</div>
     <div style="text-align:center;margin-bottom:6px;"><span class="badge">AUTH FAILED</span></div>
     <div class="hint">Authentication failed. Please try again or check your network.</div>
+    {update_html}
     <div class="terminal"><div style="display:flex;align-items:center"><span class="dot"></span> {error}</div><div style="opacity:.6">400</div></div>
   </div>
 </body>
-</html>"""
-                self.wfile.write(error_html.encode('utf-8'))
+                    </html>"""
+                    self.wfile.write(error_html.encode('utf-8'))
             finally:
                 # Signal the main thread that the callback was received
                 auth_event.set()
