@@ -6772,6 +6772,16 @@ class DraftsScreen(Container):
 class Proj101App(App):
     CSS_PATH = "main.tcss"
 
+    # When running inside a PyInstaller bundle, inspect.getfile() returns a path
+    # inside the .pyz archive which doesn't exist on disk.  Textual's
+    # _make_path_object_relative checks _BASE_PATH first and only falls back to
+    # inspect.getfile(), so we set it to the correct directory in both frozen
+    # and normal environments so CSS_PATH always resolves correctly.
+    if getattr(sys, "frozen", False):
+        _BASE_PATH = str(Path(sys._MEIPASS) / "tuitter" / "__init__.py")
+    else:
+        _BASE_PATH = str(Path(__file__))
+
     # Disable dark mode toggle - we use our own colors
     ENABLE_COMMAND_PALETTE = False
 
