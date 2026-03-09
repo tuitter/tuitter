@@ -20,7 +20,6 @@ tuitter/api_interface.py
 tuitter/ascii_video_widget.py
 tuitter/auth.py
 tuitter/auth_config.py
-tuitter/auth_server.py
 tuitter/auth_storage.py
 tuitter/convert_subway_video.py
 tuitter/data_models.py
