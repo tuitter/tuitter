@@ -806,18 +806,25 @@ class CommentItem(Widget):
         if not self.comment_id:
             return
         if self.liked_by_user:
-            # Fire API best-effort, then update UI regardless
             try:
                 api.unlike_comment(self.comment_id)
             except Exception:
                 logging.exception("[CommentItem] unlike_comment API call failed")
             self.liked_by_user = False
+            try:
+                self.app.notify("Comment unliked!", severity="warning")
+            except Exception:
+                pass
         else:
             try:
                 api.like_comment(self.comment_id)
             except Exception:
                 logging.exception("[CommentItem] like_comment API call failed")
             self.liked_by_user = True
+            try:
+                self.app.notify("Comment liked!", severity="success")
+            except Exception:
+                pass
 
 
 class CommentFeed(VerticalScroll):
@@ -967,22 +974,6 @@ class CommentFeed(VerticalScroll):
             comment_input.focus()
         except Exception:
             pass
-
-    def key_l(self) -> None:
-        """Like/unlike the currently selected comment with l key"""
-        if self.app.command_mode:
-            return
-        # Cursor must be on a comment (position >= 2)
-        if self.cursor_position < 2:
-            return
-        try:
-            items = self._get_navigable_items()
-            if self.cursor_position < len(items):
-                item = items[self.cursor_position]
-                if isinstance(item, CommentItem):
-                    item.toggle_like()
-        except Exception as e:
-            logging.warning(f"[CommentFeed] key_l error: {e}")
 
     def key_q(self) -> None:
         """Exit comment screen with q key"""
@@ -1171,17 +1162,6 @@ class CommentPanel(Container):
         if self.app.command_mode:
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
-
-    def key_l(self) -> None:
-        """Like/unlike the selected comment."""
-        if self.app.command_mode:
-            return
-        f = self._feed()
-        if f and hasattr(f, "key_l"):
-            try:
-                f.key_l()
-            except Exception:
-                pass
 
     def key_i(self) -> None:
         """Focus comment input."""
@@ -1712,6 +1692,8 @@ class NotificationItem(Static):
             return f"📢 @{n.actor} mentioned you  •  {t}\n   ↳ \"{preview}\""
         if n.type == "like":
             return f"❤️  @{n.actor} liked your post  •  {t}\n   ↳ \"{preview}\""
+        if n.type == "comment_like":
+            return f"❤️  @{n.actor} liked your comment  •  {t}\n   ↳ \"{preview}\""
         if n.type == "repost":
             return f"🔁 @{n.actor} reposted your post  •  {t}\n   ↳ \"{preview}\""
         if n.type == "follow":
@@ -8448,7 +8430,11 @@ class Proj101App(App):
                         feed = comment_panel.query_one("#comment-feed")
                         pos = getattr(feed, "cursor_position", 0)
                         if pos >= 2:  # 0=post, 1=input, 2+=comments
-                            feed.key_l()
+                            items = feed._get_navigable_items()
+                            if pos < len(items):
+                                item = items[pos]
+                                if hasattr(item, "toggle_like"):
+                                    item.toggle_like()
                             return
                         # cursor_position < 2 → fall through to like the post shown in the panel
                     except Exception:

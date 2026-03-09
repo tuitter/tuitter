@@ -46,6 +46,21 @@ def _make_handler(auth_event, auth_response):
     """
     class AuthCallbackHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
+            if self.path.startswith("/tuitter-logo.png"):
+                try:
+                    p = os.path.join(os.path.dirname(__file__), "tuitter-logo.png")
+                    with open(p, "rb") as fh:
+                        data = fh.read()
+                    self.send_response(200)
+                    self.send_header("Content-type", "image/png")
+                    self.send_header("Cache-Control", "public, max-age=86400")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+                except Exception:
+                    pass
+
             """Handle OAuth callback"""
             try:
                 parsed = urlparse(self.path)
@@ -60,26 +75,83 @@ def _make_handler(auth_event, auth_response):
                 # Send success page
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.send_header('Cache-Control', 'no-store')
                 self.end_headers()
-                success_html = """
-                    <html><body style='font-family: system-ui; padding: 2em; text-align: center'>
-                        <h1 style='color: #4CAF50'>Authentication Successful!</h1>
-                        <p>You can close this window and return to the terminal.</p>
-                    </body></html>
-                """
+                success_html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <title>tuitter — authenticated</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#0b0c10 0%,#0f1014 100%);display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
+    .panel{width:440px;max-width:92vw;background:#171722;border-radius:12px;padding:34px 36px 34px;color:#cbd2e6;box-shadow:0 30px 80px rgba(2,6,12,.7)}
+    .chrome{height:6px;background:#1f2228;border-radius:6px 6px 0 0;margin:-34px -36px 18px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.02)}
+    .logo{display:block;margin:0 auto 10px;width:92px;height:92px;object-fit:contain}
+    .title{font-family:'Space Grotesk',sans-serif;color:#caa8ff;font-size:2.4rem;text-align:center;margin:6px 0 12px}
+    .badge{display:inline-block;background:#0f3f2e;color:#b6f7b7;padding:6px 14px;border-radius:6px;font-weight:700;font-family:monospace;font-size:.78rem;margin:0 auto;box-shadow:0 6px 20px rgba(15,63,46,.08)}
+    .hint{color:#7e88a8;text-align:center;font-size:.9rem;margin:18px 0 20px;line-height:1.6}
+    .terminal{background:#0f1115;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:.78rem;color:#99a0b7;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,.02)}
+    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#50fa7b;margin-right:8px}
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="chrome"></div>
+    <img class="logo" src="/tuitter-logo.png" alt="tuitter logo">
+    <div class="title">tuitter</div>
+    <div style="text-align:center;margin-bottom:6px;"><span class="badge">AUTHENTICATED</span></div>
+    <div class="hint">You’re signed in. Return to your terminal and enjoy the feed.</div>
+    <div class="terminal"><div style="display:flex;align-items:center"><span class="dot"></span> auth session established</div><div style="opacity:.6">200 OK</div></div>
+  </div>
+</body>
+</html>"""
                 self.wfile.write(success_html.encode('utf-8'))
             except Exception as e:
                 auth_response['error'] = str(e)
                 self.send_response(400)
                 self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.send_header('Cache-Control', 'no-store')
                 self.end_headers()
-                error_html = f"""
-                    <html><body style='font-family: system-ui; padding: 2em; text-align: center'>
-                        <h1 style='color: #F44336'>Authentication Failed</h1>
-                        <p>{str(e)}</p>
-                        <p>Please close this window and try again.</p>
-                    </body></html>
-                """
+                error_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <title>tuitter — auth failed</title>
+  <style>
+    *{{box-sizing:border-box}}
+    body{{margin:0;min-height:100vh;background:linear-gradient(180deg,#0b0c10 0%,#0f1014 100%);display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}}
+    .panel{{width:440px;max-width:92vw;background:#171722;border-radius:12px;padding:34px 36px 34px;color:#cbd2e6;box-shadow:0 30px 80px rgba(2,6,12,.7)}}
+    .chrome{{height:6px;background:#1f2228;border-radius:6px 6px 0 0;margin:-34px -36px 18px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.02)}}
+    .logo{{display:block;margin:0 auto 10px;width:92px;height:92px;object-fit:contain}}
+    .title{{font-family:'Space Grotesk',sans-serif;color:#caa8ff;font-size:2.4rem;text-align:center;margin:6px 0 12px}}
+    .badge{{display:inline-block;background:#3f1a1a;color:#ffd3cf;padding:6px 14px;border-radius:6px;font-weight:700;font-family:monospace;font-size:.78rem;margin:0 auto;box-shadow:0 6px 20px rgba(63,26,26,.06)}}
+    .hint{{color:#7e88a8;text-align:center;font-size:.9rem;margin:18px 0 20px;line-height:1.6}}
+    .terminal{{background:#0f1115;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:.78rem;color:#99a0b7;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,.02)}}
+    .dot{{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff5555;margin-right:8px}}
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="chrome"></div>
+    <img class="logo" src="/tuitter-logo.png" alt="tuitter logo">
+    <div class="title">tuitter</div>
+    <div style="text-align:center;margin-bottom:6px;"><span class="badge">AUTH FAILED</span></div>
+    <div class="hint">Authentication failed. Please try again or check your network.</div>
+    <div class="terminal"><div style="display:flex;align-items:center"><span class="dot"></span> {error}</div><div style="opacity:.6">400</div></div>
+  </div>
+</body>
+</html>"""
                 self.wfile.write(error_html.encode('utf-8'))
             finally:
                 # Signal the main thread that the callback was received
