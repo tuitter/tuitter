@@ -89,15 +89,17 @@ def _make_handler(auth_event, auth_response):
   <title>tuitter — authenticated</title>
   <style>
     *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#0b0c10 0%,#0f1014 100%);display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}
-    .panel{width:440px;max-width:92vw;background:#171722;border-radius:12px;padding:34px 36px 34px;color:#cbd2e6;box-shadow:0 30px 80px rgba(2,6,12,.7)}
+    /* Dracula theme variables (local copy) */
+    :root{--background:#12081a;--background-dark:#05020b;--card:#18151a;--foreground:#eff4ff;--muted:#6b728e;--primary:#ff79c6;--secondary:#bd93f9;--accent:#8be9fd;--success:#50fa7b;--danger:#ff5555;--border:rgba(255,255,255,.04)}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,var(--background-dark) 0%,var(--background) 100%);display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;color:var(--foreground)}
+    .panel{width:440px;max-width:92vw;background:var(--card);border-radius:12px;padding:34px 36px 34px;color:var(--foreground);border:1px solid var(--border)}
     .chrome{height:6px;background:#1f2228;border-radius:6px 6px 0 0;margin:-34px -36px 18px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.02)}
-    .logo{display:block;margin:0 auto 10px;width:92px;height:92px;object-fit:contain}
-    .title{font-family:'Space Grotesk',sans-serif;color:#caa8ff;font-size:2.4rem;text-align:center;margin:6px 0 12px}
-    .badge{display:inline-block;background:#0f3f2e;color:#b6f7b7;padding:6px 14px;border-radius:6px;font-weight:700;font-family:monospace;font-size:.78rem;margin:0 auto;box-shadow:0 6px 20px rgba(15,63,46,.08)}
-    .hint{color:#7e88a8;text-align:center;font-size:.9rem;margin:18px 0 20px;line-height:1.6}
-    .terminal{background:#0f1115;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:.78rem;color:#99a0b7;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,.02)}
-    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#50fa7b;margin-right:8px}
+    .logo{display:block;margin:10px auto 6px;width:84px;height:84px;object-fit:contain;transform:translateY(6px)}
+    .title{font-family:'Space Grotesk',sans-serif;color:var(--secondary);font-size:2.4rem;text-align:center;margin:6px 0 12px}
+    .badge{display:inline-block;background:var(--success);color:#07211a;padding:6px 14px;border-radius:6px;font-weight:700;font-family:monospace;font-size:.78rem;margin:0 auto}
+    .hint{color:var(--muted);text-align:center;font-size:.9rem;margin:18px 0 20px;line-height:1.6}
+    .terminal{background:#0f1115;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:.78rem;color:#99a0b7;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)}
+    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--success);margin-right:8px}
   </style>
 </head>
 <body>
@@ -129,16 +131,17 @@ def _make_handler(auth_event, auth_response):
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
   <title>tuitter — auth failed</title>
   <style>
-    *{{box-sizing:border-box}}
-    body{{margin:0;min-height:100vh;background:linear-gradient(180deg,#0b0c10 0%,#0f1014 100%);display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif}}
-    .panel{{width:440px;max-width:92vw;background:#171722;border-radius:12px;padding:34px 36px 34px;color:#cbd2e6;box-shadow:0 30px 80px rgba(2,6,12,.7)}}
-    .chrome{{height:6px;background:#1f2228;border-radius:6px 6px 0 0;margin:-34px -36px 18px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.02)}}
-    .logo{{display:block;margin:0 auto 10px;width:92px;height:92px;object-fit:contain}}
-    .title{{font-family:'Space Grotesk',sans-serif;color:#caa8ff;font-size:2.4rem;text-align:center;margin:6px 0 12px}}
-    .badge{{display:inline-block;background:#3f1a1a;color:#ffd3cf;padding:6px 14px;border-radius:6px;font-weight:700;font-family:monospace;font-size:.78rem;margin:0 auto;box-shadow:0 6px 20px rgba(63,26,26,.06)}}
-    .hint{{color:#7e88a8;text-align:center;font-size:.9rem;margin:18px 0 20px;line-height:1.6}}
-    .terminal{{background:#0f1115;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:.78rem;color:#99a0b7;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,.02)}}
-    .dot{{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff5555;margin-right:8px}}
+        *{{box-sizing:border-box}}
+        :root{{--background:#12081a;--background-dark:#05020b;--card:#18151a;--foreground:#eff4ff;--muted:#6b728e;--primary:#ff79c6;--secondary:#bd93f9;--accent:#8be9fd;--success:#50fa7b;--danger:#ff5555;--border:rgba(255,255,255,.04)}}
+        body{{margin:0;min-height:100vh;background:linear-gradient(180deg,var(--background-dark) 0%,var(--background) 100%);display:flex;align-items:center;justify-content:center;font-family:'Inter',sans-serif;color:var(--foreground)}}
+        .panel{{width:440px;max-width:92vw;background:var(--card);border-radius:12px;padding:34px 36px 34px;color:var(--foreground);border:1px solid var(--border)}}
+        .chrome{{height:6px;background:#1f2228;border-radius:6px 6px 0 0;margin:-34px -36px 18px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.02)}}
+        .logo{{display:block;margin:10px auto 6px;width:84px;height:84px;object-fit:contain;transform:translateY(6px)}}
+        .title{{font-family:'Space Grotesk',sans-serif;color:var(--secondary);font-size:2.4rem;text-align:center;margin:6px 0 12px}}
+        .badge{{display:inline-block;background:var(--danger);color:#fff;padding:6px 14px;border-radius:6px;font-weight:700;font-family:monospace;font-size:.78rem;margin:0 auto}}
+        .hint{{color:var(--muted);text-align:center;font-size:.9rem;margin:18px 0 20px;line-height:1.6}}
+        .terminal{{background:#0f1115;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:.78rem;color:#99a0b7;display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border)}}
+        .dot{{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--danger);margin-right:8px}}
   </style>
 </head>
 <body>
