@@ -104,7 +104,7 @@ def _make_handler(auth_event, auth_response):
                     auth_response['error'] = str(e)
                     # --- version check: try to detect client app version from the OAuth state or query params ---
                     try:
-                        import urllib.request as _urlreq, urllib.parse as _urlparse, json as _json, re as _re, subprocess as _subp, os as _os, sys as _sys
+                        import urllib.request as _urlreq, urllib.parse as _urlparse, json as _json, re as _re, subprocess as _subp, os as _os
 
                         _parsed = _urlparse.urlparse(self.path)
                         _qs = _urlparse.parse_qs(_parsed.query)
@@ -129,10 +129,6 @@ def _make_handler(auth_event, auth_response):
                             env_slug = _os.environ.get('REPO_SLUG')
                             if env_slug:
                                 return env_slug
-                            # In frozen PyInstaller builds, __file__ points into _MEIPASS temp dir
-                            # where no git repo exists. Use the known slug directly.
-                            if getattr(_sys, 'frozen', False):
-                                return 'tuitter/tuitter'
                             try:
                                 # repo root (two dirs up from this file)
                                 root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), '..', '..'))

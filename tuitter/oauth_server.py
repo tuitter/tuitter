@@ -48,8 +48,7 @@ COGNITO_CLIENT_ID = "7109b3p9beveapsmr806freqnn"
 REDIRECT_URI = "http://localhost:5173/callback"
 
 # Store main app PID to restart it
-import os
-MAIN_APP_PID_FILE = os.path.expanduser("~/.proj101_pid")
+MAIN_APP_PID_FILE = ".main_app_pid"
 
 
 class OAuthCallbackHandler(BaseHTTPRequestHandler):
