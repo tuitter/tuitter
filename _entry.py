@@ -6,7 +6,7 @@ from pathlib import Path
 from tuitter.main import Proj101App
 
 if __name__ == "__main__":
-    pid_file = Path(".main_app_pid")
+    pid_file = Path.home() / ".proj101_pid"
     pid_file.write_text(str(os.getpid()))
     try:
         app = Proj101App()
