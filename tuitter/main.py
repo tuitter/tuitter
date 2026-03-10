@@ -1230,6 +1230,97 @@ class CommentPanel(Container):
                 pass
 
 
+class ImageViewerScreen(ModalScreen):
+    """Modal dialog for viewing full-size images unconstrained by height."""
+
+    DEFAULT_CSS = """
+    ImageViewerScreen {
+        background: rgba(0,0,0,0.85);
+        align: center top;
+        padding: 2 4;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close", priority=True),
+        Binding("q", "dismiss", "Close", priority=True),
+        Binding("o", "dismiss", "Close", priority=True),
+        Binding("j", "scroll_down", "Scroll Down"),
+        Binding("k", "scroll_up", "Scroll Up"),
+    ]
+
+    def __init__(self, attachment: dict, **kwargs):
+        super().__init__(**kwargs)
+        self.attachment = attachment
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(classes="image-viewer-scroll", id="image-viewer-scroll"):
+            yield Static("Loading full-resolution image...", id="image-viewer-content", markup=False)
+        yield Static("\\[o] or \\[q] Close  •  \\[j/k] Scroll", id="image-viewer-footer", classes="modal-footer")
+
+    def on_mount(self) -> None:
+        scroll = self.query_one("#image-viewer-scroll", VerticalScroll)
+        scroll.styles.width = "100%"
+        scroll.styles.height = "100%"
+        scroll.styles.border = ("round", "#888888")
+        scroll.border_title = "Image Viewer"
+        
+        footer = self.query_one("#image-viewer-footer", Static)
+        footer.styles.dock = "bottom"
+        footer.styles.text_align = "center"
+        footer.styles.padding = (0, 0, 1, 0)
+        footer.styles.color = "#aaaaaa"
+        
+        self.call_after_refresh(self._load_image)
+
+    def on_resize(self) -> None:
+        """Re-calculate the high-res image exactly matching the new window width upon zoom."""
+        try:
+            self.query_one("#image-viewer-content", Static).update("Resizing...")
+        except Exception:
+            pass
+        self.call_after_refresh(self._load_image)
+
+    def _load_image(self) -> None:
+        try:
+            content_widget = self.query_one("#image-viewer-content", Static)
+            att_type = self.attachment.get("type", "")
+            _cols = max(40, self.app.size.width - 12)
+            
+            if att_type == "image_url":
+                url = self.attachment.get("url", "")
+                art = _render_image_url(url, app=self.app, cols=_cols, max_rows=10000)
+                content_widget.update(art)
+            elif att_type == "ascii_photo":
+                local_path = self.attachment.get("local_path", "")
+                import os as _os
+                if local_path and _os.path.exists(local_path):
+                    art = image_to_braille_art(local_path, cols=_cols, max_rows=10000)
+                    content_widget.update(art)
+                else:
+                    content_widget.update(self.attachment.get("content", ""))
+        except Exception as e:
+            try:
+                self.query_one("#image-viewer-content", Static).update(f"Error loading image: {e}")
+            except Exception:
+                pass
+
+    def action_dismiss(self) -> None:
+        self.dismiss()
+        
+    def action_scroll_down(self) -> None:
+        try:
+            self.query_one("#image-viewer-scroll", VerticalScroll).scroll_down()
+        except:
+            pass
+
+    def action_scroll_up(self) -> None:
+        try:
+            self.query_one("#image-viewer-scroll", VerticalScroll).scroll_up()
+        except:
+            pass
+
+
 class CommentScreen(Screen):
     """Screen wrapper for CommentFeed"""
 
@@ -1478,6 +1569,7 @@ class PostItem(Static):
                     if url:
                         # Empty placeholder; filled after layout in on_mount
                         yield Static("⠀", classes="ascii-art art-placeholder", markup=False)
+            yield Static("[#888888]\\[o] open[/]", markup=True)
 
         # Video player if post has video
         if self.has_video and Path(self.post.video_path).exists():
@@ -1488,10 +1580,12 @@ class PostItem(Static):
             )
 
         # Post stats - use reactive fields so updates are instant
+        stats_text = f"{like_symbol} {self.like_count}  Comments {self.comment_count}"
+            
         yield Static(
-            f"{like_symbol} {self.like_count}  Comments {self.comment_count}",  # repost hidden
+            stats_text,
             classes="post-stats",
-            markup=False,
+            markup=True,
         )
 
     def on_mount(self) -> None:
@@ -1560,11 +1654,13 @@ class PostItem(Static):
             stats_widget = self.query_one(".post-stats", Static)
             like_symbol = "❤️" if self.liked_by_user else "🤍"
             # repost_symbol = "Reposts"  # HIDDEN: reposts feature
-            stats_widget.update(
-                f"{like_symbol}  {self.like_count} Likes     💬  {self.comment_count} Comments"  # repost hidden
-            )
+            
+            stats_text = f"{like_symbol}  {self.like_count} Likes     💬  {self.comment_count} Comments"
+                
+            stats_widget.update(stats_text)
         except Exception:
             # If not found, force a refresh as fallback
+            self.refresh()
             try:
                 self.refresh()
             except Exception:
@@ -1801,27 +1897,27 @@ class Sidebar(VerticalScroll):
             elif self.current_screen in ("timeline", "discover"):
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
-                yield CommandItem(":del", "delete post", classes="command-item")
-                # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
-                yield CommandItem("[Enter]", "comments", classes="command-item")
+                yield CommandItem(":del", "delete post/comment", classes="command-item")
+                yield CommandItem("\\[Enter]", "comments", classes="command-item")
             elif self.current_screen == "notifications":
                 pass
             elif self.current_screen == "profile":
                 yield CommandItem(":f", "follow", classes="command-item")
                 yield CommandItem(":uf", "unfollow", classes="command-item")
-                # Allow liking/reposting/deleting directly from profile posts
+                # Allow liking/deleting directly from profile posts
                 yield CommandItem(":l", "like", classes="command-item")
-                yield CommandItem(":del", "delete post", classes="command-item")
-                # yield CommandItem(":rp", "repost", classes="command-item")  # HIDDEN: reposts feature
-                yield CommandItem("[Enter]", "comments", classes="command-item")
+                yield CommandItem(":del", "delete post/comment", classes="command-item")
+                yield CommandItem("\\[Enter]", "comments", classes="command-item")
             elif self.current_screen == "following":
                 yield CommandItem(":n", "new post", classes="command-item")
                 yield CommandItem(":l", "like", classes="command-item")
-                yield CommandItem(":del", "delete post", classes="command-item")
-                yield CommandItem("[Enter]", "comments", classes="command-item")
+                yield CommandItem(":del", "delete post/comment", classes="command-item")
+                yield CommandItem("\\[Enter]", "comments", classes="command-item")
+                
             # Spacing (only when screen-specific commands were shown above)
             if self.current_screen not in ("settings", "drafts", "notifications"):
                 yield Static("", classes="command-item")
+                
             # Global profile commands (always visible)
             yield CommandItem(":@user", "profile", classes="command-item")
             yield CommandItem(":@", "profile (under cursor)", classes="command-item")
@@ -1881,7 +1977,7 @@ class Sidebar(VerticalScroll):
 # ───────── Modal Dialogs ─────────
 
 
-def image_to_braille_art(file_path: str, cols: int = 80) -> str:
+def image_to_braille_art(file_path: str, cols: int = 80, max_rows: int = None) -> str:
     """Convert an image to high-fidelity Unicode braille art.
 
     Each braille character (U+2800–U+28FF) encodes a 2×4 dot grid,
@@ -1890,10 +1986,20 @@ def image_to_braille_art(file_path: str, cols: int = 80) -> str:
     looks good regardless of the image's overall exposure.
     """
     from PIL import Image as _Image
+    import shutil
+
+    if max_rows is None:
+        term_h = shutil.get_terminal_size((80, 30)).lines
+        max_rows = max(10, int((term_h - 15) * 0.6))
 
     img = _Image.open(file_path).convert("L")  # grayscale
     aspect = img.height / img.width if img.width else 1
     rows = max(1, int(cols * aspect * 0.5))
+
+    if rows > max_rows:
+        rows = max_rows
+        cols = max(2, int(rows / (aspect * 0.5)))
+
     px_w, px_h = cols * 2, rows * 4
     img = img.resize((px_w, px_h), _Image.LANCZOS)
     pixels = img.load()
@@ -1925,10 +2031,10 @@ def image_to_braille_art(file_path: str, cols: int = 80) -> str:
     return "\n".join(lines)
 
 
-def _render_image_url(url: str, app=None, cols: int = None) -> str:
+def _render_image_url(url: str, app=None, cols: int = None, max_rows: int = None) -> str:
     """Download an image from a URL and render it as braille art at the viewer's terminal width.
 
-    Result is cached in _image_url_cache keyed by (url, cols) so repeated
+    Result is cached in _image_url_cache keyed by (url, cols, max_rows) so repeated
     renders of the same post don't re-download.
     """
     import requests as _requests
@@ -1936,7 +2042,11 @@ def _render_image_url(url: str, app=None, cols: int = None) -> str:
     if cols is None:
         _term_w = app.size.width if app else 120
         cols = min(80, max(30, int((_term_w - 40) * 0.90)))
-    cache_key = (url, cols)
+
+    if max_rows is None and app:
+        max_rows = max(10, int((app.size.height - 15) * 0.6))
+
+    cache_key = (url, cols, max_rows)
 
     if cache_key in _image_url_cache:
         return _image_url_cache[cache_key]
@@ -1952,7 +2062,7 @@ def _render_image_url(url: str, app=None, cols: int = None) -> str:
             tmp.write(img_bytes)
             tmp_path = tmp.name
         try:
-            art = image_to_braille_art(tmp_path, cols=cols)
+            art = image_to_braille_art(tmp_path, cols=cols, max_rows=max_rows)
         finally:
             try:
                 _os.unlink(tmp_path)
@@ -3108,6 +3218,23 @@ class TimelineFeed(VerticalScroll):
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
 
+    def key_o(self) -> None:
+        """Open image viewer for focused post"""
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        if 0 <= self.cursor_position < len(items):
+            post_item = items[self.cursor_position]
+            if getattr(post_item, "has_ascii_art", False):
+                attachments = getattr(post_item.post, "attachments", [])
+                for att in attachments:
+                    if att.get("type") in ("image_url", "ascii_photo"):
+                        try:
+                            self.app.push_screen(ImageViewerScreen(att))
+                        except Exception:
+                            pass
+                        break
+
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and prevent escape from unfocusing"""
         # Don't process keys if app is in command mode
@@ -3299,6 +3426,22 @@ class FollowingFeed(VerticalScroll):
         if self.app.command_mode:
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
+
+    def key_o(self) -> None:
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        if 0 <= self.cursor_position < len(items):
+            post_item = items[self.cursor_position]
+            if getattr(post_item, "has_ascii_art", False):
+                attachments = getattr(post_item.post, "attachments", [])
+                for att in attachments:
+                    if att.get("type") in ("image_url", "ascii_photo"):
+                        try:
+                            self.app.push_screen(ImageViewerScreen(att))
+                        except Exception:
+                            pass
+                        break
 
     def on_key(self, event) -> None:
         if self.app.command_mode:
@@ -3603,6 +3746,23 @@ class DiscoverFeed(VerticalScroll):
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
 
+    def key_o(self) -> None:
+        """Open image viewer for focused post"""
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        if 0 <= self.cursor_position < len(items):
+            post_item = items[self.cursor_position]
+            if getattr(post_item, "has_ascii_art", False):
+                attachments = getattr(post_item.post, "attachments", [])
+                for att in attachments:
+                    if att.get("type") in ("image_url", "ascii_photo"):
+                        try:
+                            self.app.push_screen(ImageViewerScreen(att))
+                        except Exception:
+                            pass
+                        break
+
     def key_i(self) -> None:
         """Focus search input with i key (insert mode) when cursor is on it"""
         if self.app.command_mode:
@@ -3781,6 +3941,23 @@ class NotificationsFeed(VerticalScroll):
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
 
+    def key_o(self) -> None:
+        """Open image viewer for focused post"""
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        if 0 <= self.cursor_position < len(items):
+            post_item = items[self.cursor_position]
+            if getattr(post_item, "has_ascii_art", False):
+                attachments = getattr(post_item.post, "attachments", [])
+                for att in attachments:
+                    if att.get("type") in ("image_url", "ascii_photo"):
+                        try:
+                            self.app.push_screen(ImageViewerScreen(att))
+                        except Exception:
+                            pass
+                        break
+
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and prevent escape from unfocusing"""
         # Don't process keys if app is in command mode
@@ -3957,6 +4134,23 @@ class ConversationsList(VerticalScroll):
         if self.app.command_mode:
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
+
+    def key_o(self) -> None:
+        """Open image viewer for focused post"""
+        if self.app.command_mode:
+            return
+        items = list(self.query(".post-item"))
+        if 0 <= self.cursor_position < len(items):
+            post_item = items[self.cursor_position]
+            if getattr(post_item, "has_ascii_art", False):
+                attachments = getattr(post_item.post, "attachments", [])
+                for att in attachments:
+                    if att.get("type") in ("image_url", "ascii_photo"):
+                        try:
+                            self.app.push_screen(ImageViewerScreen(att))
+                        except Exception:
+                            pass
+                        break
 
     def key_enter(self) -> None:
         """Open the selected conversation when Enter is pressed"""
