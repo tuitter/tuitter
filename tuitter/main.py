@@ -306,18 +306,7 @@ class MainUIScreen(Screen):
         scheduling in App.show_main_app was too early.
         """
         try:
-            # Schedule focusing after the screen's layout settles
-            try:
-                # Ask the App to focus initial content after refresh
-                self.app.call_after_refresh(self.app._focus_initial_content)
-            except Exception:
-                pass
-
-            # Conservative fallback: small delayed timer to cover slow mounts
-            try:
-                self.app.set_timer(0.05, self.app._focus_initial_content)
-            except Exception:
-                pass
+            pass  # Focus is handled by individual component on_mount handlers
         except Exception:
             pass
 
@@ -1637,7 +1626,7 @@ class PostItem(Static):
 
             # Also check for an embedded comment panel mounted in the app
             try:
-                has_comment_panel = bool(list(self.app.query("#comment-panel")))
+                has_comment_panel = bool(list(self.app.screen.query("#comment-panel")))
             except Exception:
                 has_comment_panel = False
 
@@ -2662,19 +2651,16 @@ class DeleteDraftDialog(ModalScreen):
                 pass
             # Ensure focus returns to the drafts panel after modal closes.
             try:
-                try:
-                    # Prefer call_after_refresh so focus happens after UI updates.
-                    self.app.call_after_refresh(lambda: self.app._focus_main_content_for_screen("drafts"))
-                except Exception:
-                    # Fallback to a short timer
+                def _refocus_drafts():
                     try:
-                        self.app.set_timer(0.02, lambda: self.app._focus_main_content_for_screen("drafts"))
+                        dp = self.app.screen.query_one("#drafts-panel")
+                        dp.focus()
                     except Exception:
-                        # Last resort: call directly (may be ignored if modal still present)
-                        try:
-                            self.app._focus_main_content_for_screen("drafts")
-                        except Exception:
-                            pass
+                        pass
+                try:
+                    self.app.call_after_refresh(_refocus_drafts)
+                except Exception:
+                    _refocus_drafts()
             except Exception:
                 pass
 
@@ -2715,16 +2701,16 @@ class DeleteDraftDialog(ModalScreen):
                 pass
             # Schedule refocus of drafts panel so keyboard bindings remain active.
             try:
-                try:
-                    self.app.call_after_refresh(lambda: self.app._focus_main_content_for_screen("drafts"))
-                except Exception:
+                def _refocus_drafts():
                     try:
-                        self.app.set_timer(0.02, lambda: self.app._focus_main_content_for_screen("drafts"))
+                        dp = self.app.screen.query_one("#drafts-panel")
+                        dp.focus()
                     except Exception:
-                        try:
-                            self.app._focus_main_content_for_screen("drafts")
-                        except Exception:
-                            pass
+                        pass
+                try:
+                    self.app.call_after_refresh(_refocus_drafts)
+                except Exception:
+                    _refocus_drafts()
             except Exception:
                 pass
 
@@ -4035,7 +4021,7 @@ class ChatView(VerticalScroll):
 
                 # Also update the locally-stored conversations list so the header/unread dot refreshes
                 try:
-                    convs_list = self.app.query_one("#conversations", ConversationsList)
+                    convs_list = self.app.screen.query_one("#conversations", ConversationsList)
                     if (
                         hasattr(convs_list, "_conversations")
                         and convs_list._conversations is not None
@@ -6795,6 +6781,7 @@ class Proj101App(App):
 
     BINDINGS = [
         # Basic app controls
+        Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
         # Binding("q", "quit", "Quit", show=False),
         # Screen navigation
         Binding("0", "focus_main_content", "Main Content", show=False),
@@ -6975,7 +6962,7 @@ class Proj101App(App):
         """
         if os.getenv("TUITTER_DEBUG"):
             try:
-                rl = self.query_one("#auth-log", RichLog)
+                rl = self.screen.query_one("#auth-log", RichLog)
                 rl.write(msg)
                 return
             except Exception:
@@ -7004,7 +6991,7 @@ class Proj101App(App):
             )
             # If header exists, update it
             try:
-                hdr = self.query_one("#app-header", Static)
+                hdr = self.screen.query_one("#app-header", Static)
                 hdr.update(f"tuitter [timeline] @{username}")
             except Exception:
                 pass
@@ -7058,10 +7045,10 @@ class Proj101App(App):
         try:
             # Prefer direct PostItem instances first, then CSS-classed ones
             try:
-                post_items = list(self.query(PostItem)) + list(self.query(".post-item"))
+                post_items = list(self.screen.query(PostItem)) + list(self.screen.query(".post-item"))
             except Exception:
                 try:
-                    post_items = list(self.query(".post-item"))
+                    post_items = list(self.screen.query(".post-item"))
                 except Exception:
                     post_items = []
             for post_item in post_items:
@@ -7263,16 +7250,6 @@ class Proj101App(App):
                 pass
             self.switch_mode("auth")
 
-    def _focus_initial_content(self) -> None:
-        """Helper to focus the timeline feed after initial render"""
-        try:
-            timeline_feed = self.query_one("#timeline-feed", TimelineFeed)
-            timeline_feed.add_class("vim-mode-active")
-            timeline_feed.focus()
-            # Ensure the first post has the cursor
-            timeline_feed.cursor_position = 0
-        except Exception:
-            pass
 
     def switch_screen(self, screen_name: str, **kwargs):
         # Prevent concurrent screen switches
@@ -7420,7 +7397,7 @@ class Proj101App(App):
     def action_quit(self) -> None:
         # Clean up OAuth server if on auth screen
         try:
-            auth_screen = self.query_one(AuthScreen)
+            auth_screen = self.screen.query_one(AuthScreen)
             auth_screen._cleanup_oauth_server()
         except Exception:
             pass
@@ -7428,7 +7405,7 @@ class Proj101App(App):
 
     def action_insert_mode(self) -> None:
         try:
-            self.query_one("#message-input", Input).focus()
+            self.screen.query_one("#message-input", Input).focus()
         except Exception:
             pass
 
@@ -7525,7 +7502,7 @@ class Proj101App(App):
 
     def action_focus_navigation(self) -> None:
         try:
-            topnav = self.query_one("#top-navbar", TopNav)
+            topnav = self.screen.query_one("#top-navbar", TopNav)
             topnav.focus()
         except Exception:
             pass
@@ -7552,7 +7529,7 @@ class Proj101App(App):
                 target_id = "#following-feed"
 
             if target_id:
-                panel = self.query_one(target_id)
+                panel = self.screen.query_one(target_id)
                 panel.add_class("vim-mode-active")
                 panel.focus()
 
@@ -7562,7 +7539,7 @@ class Proj101App(App):
                     if self.current_screen_name == "messages" and target_id == "#chat":
                         def _focus_chat():
                             try:
-                                chat = self.query_one("#chat", ChatView)
+                                chat = self.screen.query_one("#chat", ChatView)
                                 msgs = list(chat.query(".chat-message"))
                                 first_focus = not getattr(chat, "_chat_ever_focused", False)
                                 if first_focus and msgs:
@@ -7597,14 +7574,17 @@ class Proj101App(App):
                 self.switch_screen("messages")
                 def _focus_after_switch():
                     try:
-                        conversations = self.query_one("#conversations", ConversationsList)
+                        conversations = self.screen.query_one("#conversations", ConversationsList)
                         conversations.add_class("vim-mode-active")
                         conversations.focus()
                     except Exception:
                         pass
-                self.set_timer(0.15, _focus_after_switch)
+                try:
+                    self.call_after_refresh(_focus_after_switch)
+                except Exception:
+                    self.set_timer(0.15, _focus_after_switch)
             else:
-                conversations = self.query_one("#conversations", ConversationsList)
+                conversations = self.screen.query_one("#conversations", ConversationsList)
                 conversations.add_class("vim-mode-active")
                 conversations.focus()
         except Exception:
@@ -7699,7 +7679,7 @@ class Proj101App(App):
         """Replace the TimelineFeed in-place with a fresh one to show latest posts."""
         if self.current_screen_name == "timeline":
             try:
-                old_feed = self.query_one("#timeline-feed", TimelineFeed)
+                old_feed = self.screen.query_one("#timeline-feed", TimelineFeed)
                 parent = old_feed.parent
                 old_feed.remove()
 
@@ -7790,7 +7770,7 @@ class Proj101App(App):
                     target_post_id = getattr(post, "id", None)
                     if target_post_id is not None:
                         try:
-                            mounted_post_items = list(self.query(PostItem)) + list(self.query(".post-item"))
+                            mounted_post_items = list(self.screen.query(PostItem)) + list(self.screen.query(".post-item"))
                             for pi in mounted_post_items:
                                 try:
                                     p = getattr(pi, "post", None)
@@ -8238,7 +8218,7 @@ class Proj101App(App):
                     except Exception:
                         # Fallback: focus message input if present
                         try:
-                            msg_input = self.query_one("#message-input", Input)
+                            msg_input = self.screen.query_one("#message-input", Input)
                             msg_input.focus()
                         except Exception:
                             pass
@@ -8271,7 +8251,7 @@ class Proj101App(App):
                             # Timeline
                             if not viewed and self.current_screen_name == "timeline":
                                 try:
-                                    timeline_feed = self.query_one("#timeline-feed")
+                                    timeline_feed = self.screen.query_one("#timeline-feed")
                                     items = list(timeline_feed.query(".post-item"))
                                     idx = getattr(timeline_feed, "cursor_position", 0)
                                     if 0 <= idx < len(items):
@@ -8285,7 +8265,7 @@ class Proj101App(App):
                             # Following feed
                             if not viewed and self.current_screen_name == "following":
                                 try:
-                                    following_feed = self.query_one("#following-feed")
+                                    following_feed = self.screen.query_one("#following-feed")
                                     items = list(following_feed.query(".post-item"))
                                     idx = getattr(following_feed, "cursor_position", 0)
                                     if 0 <= idx < len(items):
@@ -8299,7 +8279,7 @@ class Proj101App(App):
                             # Discover (posts offset by search input)
                             if not viewed and self.current_screen_name == "discover":
                                 try:
-                                    discover_feed = self.query_one("#discover-feed")
+                                    discover_feed = self.screen.query_one("#discover-feed")
                                     items = list(discover_feed.query(".post-item"))
                                     idx = getattr(discover_feed, "cursor_position", 0)
                                     post_idx = idx - 1
@@ -8315,10 +8295,10 @@ class Proj101App(App):
                             if not viewed and self.current_screen_name in ("profile", "user_profile"):
                                 try:
                                     try:
-                                        profile_view = self.query_one("#profile-view", ProfileView)
+                                        profile_view = self.screen.query_one("#profile-view", ProfileView)
                                     except Exception:
                                         try:
-                                            profile_panel = self.query_one("#profile-panel")
+                                            profile_panel = self.screen.query_one("#profile-panel")
                                             profile_view = profile_panel.query_one(ProfileView)
                                         except Exception:
                                             profile_view = None
@@ -8339,10 +8319,10 @@ class Proj101App(App):
                             if not viewed and self.current_screen_name == "messages":
                                 try:
                                     try:
-                                        convs = self.query_one("#conversations", ConversationsList)
+                                        convs = self.screen.query_one("#conversations", ConversationsList)
                                     except Exception:
                                         try:
-                                            convs = self.query_one(ConversationsList)
+                                            convs = self.screen.query_one(ConversationsList)
                                         except Exception:
                                             convs = None
                                     if convs is not None:
@@ -8367,10 +8347,10 @@ class Proj101App(App):
                             if not viewed:
                                 try:
                                     try:
-                                        chat_view = self.query_one("#chat", ChatView)
+                                        chat_view = self.screen.query_one("#chat", ChatView)
                                     except Exception:
                                         try:
-                                            chat_view = self.query_one(ChatView)
+                                            chat_view = self.screen.query_one(ChatView)
                                         except Exception:
                                             chat_view = None
                                     if chat_view is not None:
@@ -8391,7 +8371,7 @@ class Proj101App(App):
                 elif command == "l":
                     # If a comment panel is open and cursor is on a comment, like the comment instead.
                     try:
-                        comment_panel = self.query_one("#comment-panel")
+                        comment_panel = self.screen.query_one("#comment-panel")
                         feed = comment_panel.query_one("#comment-feed")
                         pos = getattr(feed, "cursor_position", 0)
                         if pos >= 2:  # 0=post, 1=input, 2+=comments
@@ -8408,7 +8388,7 @@ class Proj101App(App):
                     # Like the currently focused post in timeline or discover
                     if self.current_screen_name == "timeline":
                         try:
-                            timeline_feed = self.query_one("#timeline-feed")
+                            timeline_feed = self.screen.query_one("#timeline-feed")
                             items = list(timeline_feed.query(".post-item"))
                             idx = getattr(timeline_feed, "cursor_position", 0)
                             if 0 <= idx < len(items):
@@ -8476,10 +8456,10 @@ class Proj101App(App):
                         try:
                             # Find the mounted ProfileView and determine selected row
                             try:
-                                profile_view = self.query_one("#profile-view", ProfileView)
+                                profile_view = self.screen.query_one("#profile-view", ProfileView)
                             except Exception:
                                 try:
-                                    profile_panel = self.query_one("#profile-panel")
+                                    profile_panel = self.screen.query_one("#profile-panel")
                                     profile_view = profile_panel.query_one(ProfileView)
                                 except Exception:
                                     profile_view = None
@@ -8545,10 +8525,10 @@ class Proj101App(App):
                         try:
                             # Same as profile but target the user-profile-view
                             try:
-                                profile_view = self.query_one("#user-profile-view", ProfileView)
+                                profile_view = self.screen.query_one("#user-profile-view", ProfileView)
                             except Exception:
                                 try:
-                                    profile_panel = self.query_one("#user-profile-panel")
+                                    profile_panel = self.screen.query_one("#user-profile-panel")
                                     profile_view = profile_panel.query_one(ProfileView)
                                 except Exception:
                                     profile_view = None
@@ -8612,7 +8592,7 @@ class Proj101App(App):
                             pass
                     elif self.current_screen_name == "discover":
                         try:
-                            discover_feed = self.query_one("#discover-feed")
+                            discover_feed = self.screen.query_one("#discover-feed")
                             items = list(discover_feed.query(".post-item"))
                             idx = getattr(discover_feed, "cursor_position", 0)
                             # Discover feed includes a search input at position 0,
@@ -8677,7 +8657,7 @@ class Proj101App(App):
                             pass
                     elif self.current_screen_name == "following":
                         try:
-                            following_feed = self.query_one("#following-feed")
+                            following_feed = self.screen.query_one("#following-feed")
                             items = list(following_feed.query(".post-item"))
                             idx = getattr(following_feed, "cursor_position", 0)
                             if 0 <= idx < len(items):
@@ -8732,7 +8712,7 @@ class Proj101App(App):
                 elif command == "rp" and False:  # HIDDEN: reposts feature disabled
                     if self.current_screen_name == "timeline":
                         try:
-                            timeline_feed = self.query_one("#timeline-feed")
+                            timeline_feed = self.screen.query_one("#timeline-feed")
                             items = list(timeline_feed.query(".post-item"))
                             idx = getattr(timeline_feed, "cursor_position", 0)
                             if 0 <= idx < len(items):
@@ -8802,10 +8782,10 @@ class Proj101App(App):
                     elif self.current_screen_name == "profile":
                         try:
                             try:
-                                profile_view = self.query_one("#profile-view", ProfileView)
+                                profile_view = self.screen.query_one("#profile-view", ProfileView)
                             except Exception:
                                 try:
-                                    profile_panel = self.query_one("#profile-panel")
+                                    profile_panel = self.screen.query_one("#profile-panel")
                                     profile_view = profile_panel.query_one(ProfileView)
                                 except Exception:
                                     profile_view = None
@@ -8868,7 +8848,7 @@ class Proj101App(App):
                             pass
                     elif self.current_screen_name == "discover":
                         try:
-                            discover_feed = self.query_one("#discover-feed")
+                            discover_feed = self.screen.query_one("#discover-feed")
                             items = list(discover_feed.query(".post-item"))
                             idx = getattr(discover_feed, "cursor_position", 0)
                             # Adjust for search input at position 0
@@ -8928,7 +8908,7 @@ class Proj101App(App):
                         screen = self.current_screen_name
                         if screen == "timeline":
                             try:
-                                timeline_feed = self.query_one("#timeline-feed")
+                                timeline_feed = self.screen.query_one("#timeline-feed")
                                 items = list(timeline_feed.query(".post-item"))
                                 idx = getattr(timeline_feed, "cursor_position", 0)
                                 if 0 <= idx < len(items):
@@ -8938,7 +8918,7 @@ class Proj101App(App):
                                 pass
                         elif screen == "discover":
                             try:
-                                discover_feed = self.query_one("#discover-feed")
+                                discover_feed = self.screen.query_one("#discover-feed")
                                 items = list(discover_feed.query(".post-item"))
                                 idx = getattr(discover_feed, "cursor_position", 0)
                                 if 0 <= idx < len(items):
@@ -8948,7 +8928,7 @@ class Proj101App(App):
                                 pass
                         elif screen == "following":
                             try:
-                                following_feed = self.query_one("#following-feed")
+                                following_feed = self.screen.query_one("#following-feed")
                                 items = list(following_feed.query(".post-item"))
                                 idx = getattr(following_feed, "cursor_position", 0)
                                 if 0 <= idx < len(items):
@@ -8959,9 +8939,9 @@ class Proj101App(App):
                         elif screen == "profile":
                             try:
                                 try:
-                                    profile_view = self.query_one("#profile-view", ProfileView)
+                                    profile_view = self.screen.query_one("#profile-view", ProfileView)
                                 except Exception:
-                                    profile_panel = self.query_one("#profile-panel")
+                                    profile_panel = self.screen.query_one("#profile-panel")
                                     profile_view = profile_panel.query_one(ProfileView)
                                 rows = profile_view._rows()
                                 r = getattr(profile_view, "cursor_row", 0)
@@ -8995,7 +8975,7 @@ class Proj101App(App):
                     try:
                         for view_id in ("#profile-view", "#user-profile-view"):
                             try:
-                                pv = self.query_one(view_id, ProfileView)
+                                pv = self.screen.query_one(view_id, ProfileView)
                                 target_handle = pv.profile.get("username") or pv.profile.get("handle")
                                 break
                             except Exception:
@@ -9012,7 +8992,7 @@ class Proj101App(App):
                                 if ok:
                                     self.notify(f"Now following @{target_handle}!", severity="success")
                                     try:
-                                        btn = self.query_one("#follow-user-btn", Button)
+                                        btn = self.screen.query_one("#follow-user-btn", Button)
                                         btn.label = "Unfollow"
                                     except Exception:
                                         pass
@@ -9029,7 +9009,7 @@ class Proj101App(App):
                     try:
                         for view_id in ("#profile-view", "#user-profile-view"):
                             try:
-                                pv = self.query_one(view_id, ProfileView)
+                                pv = self.screen.query_one(view_id, ProfileView)
                                 target_handle = pv.profile.get("username") or pv.profile.get("handle")
                                 break
                             except Exception:
@@ -9042,7 +9022,7 @@ class Proj101App(App):
                             if ok:
                                 self.notify(f"Unfollowed @{target_handle}.", severity="success")
                                 try:
-                                    btn = self.query_one("#follow-user-btn", Button)
+                                    btn = self.screen.query_one("#follow-user-btn", Button)
                                     btn.label = "Follow"
                                 except Exception:
                                     pass
