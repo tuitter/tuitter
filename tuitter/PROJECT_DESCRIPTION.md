@@ -179,7 +179,7 @@ Transform Tuitter into the go-to social platform for developers and terminal ent
 
 ```bash
 git clone --recurse-submodules https://github.com/tuitter/tuitter.git
-cd proj101
+cd tuitter
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

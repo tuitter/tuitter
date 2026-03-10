@@ -30,7 +30,7 @@ cleanup() {
     pkill -f "python3 main.py" 2>/dev/null || true
 
     # Clean up signal files
-    rm -f .restart_signal ~/.proj101_pid
+    rm -f .restart_signal ~/.tuitter_pid
 
     exit 0
 }

@@ -3,13 +3,13 @@ import os
 import warnings
 warnings.filterwarnings("ignore", message=".*character detection.*")
 from pathlib import Path
-from tuitter.main import Proj101App
+from tuitter.main import TuitterApp
 
 if __name__ == "__main__":
-    pid_file = Path.home() / ".proj101_pid"
+    pid_file = Path.home() / ".tuitter_pid"
     pid_file.write_text(str(os.getpid()))
     try:
-        app = Proj101App()
+        app = TuitterApp()
         app.run()
     finally:
         try:

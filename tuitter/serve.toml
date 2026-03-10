@@ -1,2 +1,2 @@
-[app.Proj101App]
+[app.TuitterApp]
 command = "python main.py"

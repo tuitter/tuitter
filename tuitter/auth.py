@@ -91,7 +91,7 @@ def _make_handler(auth_event, auth_response):
 <body>
   <div class="panel">
     <div class="chrome"></div>
-    <img class="logo" src="https://raw.githubusercontent.com/DH-GM/proj101/dev/tuitter/tuitter-logo.png" alt="tuitter logo">
+    <img class="logo" src="https://raw.githubusercontent.com/DH-GM/tuitter/dev/tuitter/tuitter-logo.png" alt="tuitter logo">
     <div class="title">tuitter</div>
     <div style="text-align:center;margin-bottom:6px;"><span class="badge">AUTHENTICATED</span></div>
     <div class="hint">You’re signed in. Return to your terminal and enjoy the feed.</div>
@@ -273,7 +273,7 @@ def _make_handler(auth_event, auth_response):
 <body>
   <div class="panel">
     <div class="chrome"></div>
-    <img class="logo" src="https://raw.githubusercontent.com/DH-GM/proj101/dev/tuitter/tuitter-logo.png" alt="tuitter logo">
+    <img class="logo" src="https://raw.githubusercontent.com/DH-GM/tuitter/dev/tuitter/tuitter-logo.png" alt="tuitter logo">
     <div class="title">tuitter</div>
     <div style="text-align:center;margin-bottom:6px;"><span class="badge">AUTH FAILED</span></div>
     <div class="hint">Authentication failed. Please try again or check your network.</div>

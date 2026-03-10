@@ -145,7 +145,7 @@ class NewMessageReceived(Message):
 
 
 # Drafts file path
-DRAFTS_FILE = Path.home() / ".proj101_drafts.json"
+DRAFTS_FILE = Path.home() / ".tuitter_drafts.json"
 
 
 def load_drafts() -> List[Dict]:
@@ -6781,7 +6781,7 @@ class DraftsScreen(Container):
         yield DraftsPanel(id="drafts-panel")
 
 
-class Proj101App(App):
+class TuitterApp(App):
     CSS_PATH = "main.tcss"
 
     # When running inside a PyInstaller bundle, inspect.getfile() returns a path
@@ -9092,18 +9092,18 @@ class Proj101App(App):
 def main():
     logging.debug("inside __main__ guard, about to run app")
     try:
-        Proj101App().run()
+        TuitterApp().run()
     except Exception as e:
         import traceback
 
-        logging.exception("Exception occurred while running Proj101App:")
+        logging.exception("Exception occurred while running TuitterApp:")
 
 
 if __name__ == "__main__":
-    pid_file = Path.home() / ".proj101_pid"
+    pid_file = Path.home() / ".tuitter_pid"
     pid_file.write_text(str(os.getpid()))
     try:
-        app = Proj101App()
+        app = TuitterApp()
         app.run()
     finally:
         try:
