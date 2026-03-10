@@ -2017,13 +2017,74 @@ class NewPostDialog(ModalScreen):
             self.draft_attachments.copy() if self.draft_attachments else []
         )
         self._preview_art: str | None = None  # braille preview for compose dialog
+        self._local_image_path: str | None = None  # local path to recalculate resizing
 
-        # Update attachments display
+        # Update attachments display immediately (will say [photo attached] if URL)
         self._update_attachments_display()
+
+        # Kick off background render if an image attached
+        for getattr_type, path in self._attachments:
+            if getattr_type == "image_url":
+                self.call_after_refresh(self._restore_preview_art, path)
+                break
 
         textarea.focus()
         self.in_insert_mode = True
         self.cursor_position = 0
+
+    def on_resize(self) -> None:
+        """Handle window resize to dynamically scale the preview art."""
+        self.call_after_refresh(self._recalculate_preview)
+
+    def _recalculate_preview(self) -> None:
+        """Recalculate preview braille art based on current width."""
+        has_image = any(t in ("photo", "ascii_photo", "image_url") for t, _ in getattr(self, "_attachments", []))
+        if not has_image:
+            return
+
+        try:
+            try:
+                _cols = self.query_one("#post-textarea").size.width
+                if not _cols or _cols < 20:
+                    raise ValueError
+            except Exception:
+                _cols = max(40, (self.size.width or 80) - 12)
+
+            local_path = getattr(self, "_local_image_path", None)
+
+            # If we know the local file path, perfectly resize it instantly
+            if local_path:
+                self._preview_art = image_to_braille_art(local_path, cols=_cols)
+
+                # If we are using the ascii_photo fallback, update the attachment list directly
+                for i, (t, p) in enumerate(self._attachments):
+                    if t == "ascii_photo":
+                        self._attachments[i] = ("ascii_photo", self._preview_art)
+                        break
+
+                self._update_attachments_display()
+            else:
+                # If we loaded from a draft without local path, re-fetch via URL
+                for t, url in getattr(self, "_attachments", []):
+                    if t == "image_url":
+                        self._restore_preview_art(url)
+                        break
+        except Exception:
+            pass
+
+    def _restore_preview_art(self, url: str) -> None:
+        """Fetch and render the draft image preview after the layout passes."""
+        try:
+            try:
+                _cols = self.query_one("#post-textarea").size.width
+                if not _cols or _cols < 20:
+                    raise ValueError
+            except Exception:
+                _cols = max(40, (self.size.width or 80) - 12)
+            self._preview_art = _render_image_url(url, app=self.app, cols=_cols)
+            self._update_attachments_display()
+        except Exception:
+            pass
 
     def _get_navigable_buttons(self) -> list:
         """Get list of all navigable buttons in order."""
@@ -2096,6 +2157,7 @@ class NewPostDialog(ModalScreen):
             after = len(self._attachments)
             if after < before:
                 self._preview_art = None
+                self._local_image_path = None
                 self._update_attachments_display()
                 self._show_status("Photo removed.")
             else:
@@ -2208,6 +2270,8 @@ class NewPostDialog(ModalScreen):
                 root.destroy()
                 if not file_path:
                     return
+
+                self._local_image_path = file_path
 
                 try:
                     # Remove any existing photo attachment so we only keep one image
@@ -6466,23 +6530,20 @@ class DraftsPanel(VerticalScroll):
             if getattr(self, "app", None) is not None:
                 # Use the existing on_drafts_updated handler for consistency
                 self.watch(self.app, "drafts_store", lambda old, new: self.on_drafts_updated(DraftsUpdated()))
-            # Initialize selection to the first displayed draft so keyboard
-            # navigation starts with the Open action focused
-            try:
-                # Ensure there is at least one draft button to focus
-                self.selected_action = "open"
-                self.cursor_position = 0
-                # Update visuals
-                self._update_cursor()
-                self._update_action_highlight()
-                open_buttons = list(self.query(".draft-action-btn"))
-                if open_buttons:
-                    try:
-                        open_buttons[0].focus()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+            self.call_after_refresh(self._initialize_focus)
+        except Exception:
+            pass
+
+    def _initialize_focus(self) -> None:
+        """Apply visual highlight to the first action button securely after DOM mounts."""
+        try:
+            self.selected_action = "open"
+            self.cursor_position = 0
+            self._update_cursor()
+            self._update_action_highlight()
+            open_buttons = list(self.query(".draft-action-btn"))
+            if open_buttons:
+                open_buttons[0].focus()
         except Exception:
             pass
 
@@ -6738,23 +6799,8 @@ class DraftsPanel(VerticalScroll):
                     box.add_class("vim-cursor")
                 self.mount(box)
 
-        # Reset cursor position
-        self.cursor_position = 0
-        # Ensure visual highlights are applied and that the first Open
-        # button is focused so keyboard users can continue interacting
-        # immediately after a refresh (for example, after deleting a draft).
-        try:
-            # Update visuals
-            self._update_cursor()
-            self._update_action_highlight()
-            open_buttons = list(self.query(".draft-action-btn"))
-            if open_buttons:
-                try:
-                    open_buttons[0].focus()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        # Reset cursor position and ensure visual highlights are applied securely
+        self.call_after_refresh(self._initialize_focus)
 
 
 class DraftsScreen(Container):
