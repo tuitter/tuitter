@@ -2900,6 +2900,7 @@ class TimelineFeed(VerticalScroll):
             yield post_item
 
     def on_mount(self) -> None:
+        self.focus()
         self.watch(self, "cursor_position", self._update_cursor)
         self.watch(self, "scroll_y", self._check_scroll_load)
 
@@ -3134,6 +3135,7 @@ class FollowingFeed(VerticalScroll):
             yield post_item
 
     def on_mount(self) -> None:
+        self.focus()
         self.watch(self, "cursor_position", self._update_cursor)
         self.watch(self, "scroll_y", self._check_scroll_load)
 
@@ -3332,6 +3334,7 @@ class DiscoverFeed(VerticalScroll):
             yield post_item
 
     def on_mount(self) -> None:
+        self.focus()
         self.watch(self, "cursor_position", self._update_cursor)
         self.watch(self, "scroll_y", self._check_scroll_load)
 
@@ -3651,6 +3654,7 @@ class NotificationsFeed(VerticalScroll):
 
     def on_mount(self) -> None:
         """Watch for cursor position changes"""
+        self.focus()
         self.watch(self, "cursor_position", self._update_cursor)
 
     def _update_cursor(self) -> None:
@@ -6160,6 +6164,7 @@ class ProfilePanel(VerticalScroll):
 
     def on_mount(self) -> None:
         """Focus the inner ProfileView so scrolling/keys work as expected."""
+        self.focus()
         try:
             view = self.query_one("#profile-view", ProfileView)
             try:
@@ -6461,6 +6466,7 @@ class DraftsPanel(VerticalScroll):
 
     def on_mount(self) -> None:
         """Watch for cursor position changes"""
+        self.focus()
         self.watch(self, "cursor_position", self._update_cursor)
         self.watch(self, "selected_action", self._update_action_highlight)
         try:
@@ -6851,8 +6857,9 @@ class Proj101App(App):
     def watch_command_text(self, new_text: str) -> None:
         """Update command bar whenever command_text changes"""
         try:
-            command_bar = self.query_one("#command-bar", Static)
-            command_bar.update(new_text)
+            if self.screen:
+                command_bar = self.screen.query_one("#command-bar", Static)
+                command_bar.update(new_text)
         except:
             pass
 
@@ -6929,8 +6936,8 @@ class Proj101App(App):
 
                 # Ensure the initial content is focused (timeline feed) so vim navigation works immediately
                 try:
-                    # Schedule focusing after layout settles
-                    self.call_after_refresh(self._focus_initial_content)
+                    # Relying on component's on_mount for focus
+                    pass
                 except Exception:
                     pass
 
@@ -7367,7 +7374,7 @@ class Proj101App(App):
                 self.current_screen_name = screen_name
 
                 # Focus the main content area after screen switch
-                self._focus_main_content_for_screen(screen_name)
+                # Relies on component's on_mount
 
             def mount_new_screen():
                 # Old containers should already be removed, but double-check
@@ -7399,73 +7406,16 @@ class Proj101App(App):
                 try:
                     self.call_after_refresh(update_ui)
                 except Exception:
-                    try:
-                        self.set_timer(0.02, update_ui)
-                    except Exception:
-                        update_ui()
+                    update_ui()
 
             # Mount the new screen and ensure update_ui runs after mount completes
             try:
                 self.call_after_refresh(mount_new_screen)
             except Exception:
-                # Fallback to a short timer to start the mount
-                try:
-                    self.set_timer(0.02, mount_new_screen)
-                except Exception:
-                    mount_new_screen()
+                mount_new_screen()
             self.set_timer(0.1, lambda: setattr(self, "_switching", False))
 
-    def _focus_main_content_for_screen(self, screen_name: str) -> None:
-        """Focus the main content feed/panel for the current screen"""
-        def do_focus():
-            try:
-                # Map screen names to their main content widget IDs
-                content_map = {
-                    "timeline": "#timeline-feed",
-                    "discover": "#discover-feed",
-                    "notifications": "#notifications-feed",
-                    "messages": "#chat",
-                    "profile": "#profile-panel",
-                    "settings": "#settings-panel",
-                    "following": "#following-feed",
-                    "drafts": "#drafts-panel",
-                    # Backwards-compat: treat any legacy 'user_profile' key as profile panel
-                    "user_profile": "#profile-panel",
-                }
 
-                if screen_name in content_map:
-                    widget_id = content_map[screen_name]
-                    widget = self.query_one(widget_id)
-                    widget.focus()
-
-                    # Reset cursor position to 0 for feeds with cursor navigation,
-                    # except when we've just closed an embedded comment panel and
-                    # restored the feed's cursor — in that case preserve the restored value.
-                    if hasattr(widget, "cursor_position"):
-                        try:
-                            if getattr(self, "_just_closed_comment_panel", False):
-                                # Clear the flag and do not overwrite restored cursor
-                                try:
-                                    self._just_closed_comment_panel = False
-                                except Exception:
-                                    pass
-                            else:
-                                widget.cursor_position = 0
-                        except Exception:
-                            try:
-                                widget.cursor_position = 0
-                            except Exception:
-                                pass
-            except Exception:
-                pass
-
-        try:
-            self.call_after_refresh(do_focus)
-        except Exception:
-            try:
-                self.set_timer(0.05, do_focus)
-            except Exception:
-                do_focus()
 
     def action_quit(self) -> None:
         # Clean up OAuth server if on auth screen
@@ -7734,12 +7684,12 @@ class Proj101App(App):
 
     def action_show_command_bar(self) -> None:
         try:
-            command_bar = self.query_one("#command-bar", Static)
+            command_bar = self.screen.query_one("#command-bar", Static)
             command_bar.styles.display = "block"
             self.command_text = ":"
             self.command_mode = True
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error(f"Failed to show command bar: {e}")
 
     def on_input_changed(self, event: Input.Changed) -> None:
         # Don't interfere with command input typing
@@ -7755,9 +7705,7 @@ class Proj101App(App):
 
                 def _mount_and_focus():
                     parent.mount(TimelineFeed(id="timeline-feed"))
-                    self.call_after_refresh(
-                        lambda: self._focus_main_content_for_screen("timeline")
-                    )
+                    pass
 
                 self.call_after_refresh(_mount_and_focus)
             except Exception:
@@ -8198,7 +8146,7 @@ class Proj101App(App):
 
             if event.key == "escape":
                 try:
-                    command_bar = self.query_one("#command-bar", Static)
+                    command_bar = self.screen.query_one("#command-bar", Static)
                     command_bar.styles.display = "none"
                 except:
                     pass
@@ -8207,7 +8155,7 @@ class Proj101App(App):
             elif event.key == "enter":
                 command = self.command_text.strip()
                 try:
-                    command_bar = self.query_one("#command-bar", Static)
+                    command_bar = self.screen.query_one("#command-bar", Static)
                     command_bar.styles.display = "none"
                 except:
                     pass
