@@ -2075,7 +2075,7 @@ class NewPostDialog(ModalScreen):
             self.in_insert_mode = False
             self.cursor_position = 1  # Start at first button
             try:
-                self.focus()
+                self.set_focus(None)
             except Exception:
                 pass
             self._update_cursor()
