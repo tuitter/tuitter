@@ -4504,8 +4504,13 @@ class MessagesScreen(Container):
                 # Remove all existing chat views
                 for chat_view in existing_chats:
                     chat_view.remove()
-                # Use set_timer with delay to ensure removal completes before mounting
-                self.set_timer(0.1, lambda: self._mount_new_chat(conversation_id, username))
+                # Use call_after_refresh to ensure removal completes before mounting
+                def _do_mount():
+                    self._mount_new_chat(conversation_id, username)
+                try:
+                    self.call_after_refresh(_do_mount)
+                except Exception:
+                    self.set_timer(0.1, _do_mount)
             else:
                 # No chat view exists, create it
                 chat_view = ChatView(conversation_id=conversation_id, username=username, id="chat")
@@ -9100,7 +9105,7 @@ def main():
 
 
 if __name__ == "__main__":
-    pid_file = Path(".main_app_pid")
+    pid_file = Path.home() / ".proj101_pid"
     pid_file.write_text(str(os.getpid()))
     try:
         app = Proj101App()
