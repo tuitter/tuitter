@@ -1967,6 +1967,8 @@ def _render_image_url(url: str, app=None, cols: int = None) -> str:
 class NewPostDialog(ModalScreen):
     """Modal dialog for creating a new post."""
 
+    BINDINGS = [Binding("escape", "escape", "Navigate", priority=True)]
+
     cursor_position = reactive(0)  # 0 = textarea, 1-5 = buttons
 
     def __init__(self, draft_content: str = "", draft_attachments: List = None, draft_index: int = None):
@@ -2065,9 +2067,9 @@ class NewPostDialog(ModalScreen):
         """React to cursor position changes."""
         self._update_cursor()
 
-    def key_escape(self) -> None:
+    def action_escape(self) -> None:
         """Exit insert mode and enter navigation mode."""
-        if self.app.command_mode:
+        if getattr(self.app, "command_mode", False):
             return
         if self.in_insert_mode:
             self.in_insert_mode = False
@@ -4570,6 +4572,8 @@ class AvatarWidget(Static):
     call_after_refresh so the first render fires after Textual's layout pass.
     """
 
+    DEFAULT_CSS = "AvatarWidget { width: 100%; }"
+
     def __init__(self, pic_url: str = "", ascii_fallback: str = "", **kwargs):
         super().__init__("\u2800", markup=False, **kwargs)  # blank braille placeholder
         self._pic_url = pic_url
@@ -4585,27 +4589,34 @@ class AvatarWidget(Static):
         w = self.size.width
         if not w:
             return
+
+        cols = max(20, w - 4) if w > 10 else 50
+
+        from rich.text import Text
         if self._pic_url:
-            from rich.text import Text
-            cols = max(15, w - 4)
             art = _render_image_url(self._pic_url, self.app, cols=cols)
+            self.update(Text(art))
+        elif getattr(self, "_local_path", ""):
+            art = image_to_braille_art(self._local_path, cols=cols)
             self.update(Text(art))
         elif self._ascii_fallback and self._ascii_fallback.strip():
             self.update(self._ascii_fallback)
         else:
             self.update("No profile picture available")
 
-    def set_url(self, pic_url: str, ascii_fallback: str = "") -> None:
-        """Update the picture URL (and optional fallback) then re-render."""
+    def set_url(self, pic_url: str, ascii_fallback: str = "", local_path: str = "") -> None:
+        """Update the picture URL or local file path then re-render."""
         self._pic_url = pic_url
         if ascii_fallback:
             self._ascii_fallback = ascii_fallback
+        self._local_path = local_path
         self.call_after_refresh(self._do_render)
 
     def clear(self) -> None:
         """Reset to no-picture state."""
         self._pic_url = ""
         self._ascii_fallback = ""
+        self._local_path = ""
         self.update("No profile picture available")
 
 
@@ -5087,42 +5098,6 @@ class SettingsPanel(VerticalScroll):
         except Exception:
             pass
 
-    def _render_profile_pic(self) -> None:
-        """Render the selected profile picture at the actual panel width, then
-        store the result as _pending_ascii and update the preview widget.
-        Mirrors PostItem._fill_image_placeholders.
-        """
-        path = getattr(self, "_profile_pic_path", "")
-        if not path:
-            return
-        try:
-            # Use the SettingsPanel's own laid-out width (same pattern as PostItem).
-            try:
-                w = self.size.width
-                if w <= 0:
-                    raise ValueError("zero")
-            except Exception:
-                w = 80
-            cols = max(15, w - 8)
-            ascii_art = image_to_braille_art(path, cols=cols)
-            self._pending_ascii = ascii_art
-            try:
-                avatar_w = self.query_one("#profile-picture-display", AvatarWidget)
-                avatar_w.set_url("", ascii_art)
-            except Exception:
-                pass
-        except Exception:
-            try:
-                self.app.notify("Failed to convert image to ASCII", severity="error")
-            except Exception:
-                pass
-
-    def on_resize(self) -> None:
-        """Re-render local-path preview when the terminal is resized.
-        R2 URL renders are handled automatically by AvatarWidget.on_resize."""
-        if getattr(self, "_profile_pic_path", ""):
-            self.call_after_refresh(self._render_profile_pic)
-
     def _update_file_btn_highlight(self) -> None:
         """Apply vim-cursor to the active button inside file-buttons-row."""
         try:
@@ -5218,9 +5193,13 @@ class SettingsPanel(VerticalScroll):
                 if not file_path:
                     return
 
-                # Store path and render at actual panel width after layout
+                # Store path and render natively inside AvatarWidget
                 self._profile_pic_path = file_path
-                self.call_after_refresh(self._render_profile_pic)
+                try:
+                    avatar_w = self.query_one("#profile-picture-display", AvatarWidget)
+                    avatar_w.set_url("", local_path=file_path)
+                except Exception:
+                    pass
                 try:
                     self.app.notify("Profile picture preview updating…", severity="information")
                 except Exception:
@@ -5389,7 +5368,8 @@ class SettingsPanel(VerticalScroll):
                         w = container.size.width
                     except Exception:
                         w = self.size.width
-                    cols = max(15, w - 4) if w > 10 else 40
+                    _term_w = self.app.size.width if self.app else w
+                    cols = min(80, max(30, int((_term_w - 40) * 0.90)))
                     self._pending_ascii = image_to_braille_art(self._profile_pic_path, cols=cols)
             except Exception:
                 pass
