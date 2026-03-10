@@ -4511,7 +4511,16 @@ class MessagesScreen(Container):
                 chat_view = ChatView(conversation_id=conversation_id, username=username, id="chat")
                 self.mount(chat_view)
                 try:
-                    self.call_after_refresh(chat_view.focus)
+                    def _focus_new_chat():
+                        try:
+                            chat_view.focus()
+                            msgs = list(chat_view.query(".chat-message"))
+                            if msgs:
+                                chat_view.cursor_position = len(msgs) - 1
+                            chat_view.scroll_end(animate=False)
+                        except Exception:
+                            pass
+                    self.call_after_refresh(_focus_new_chat)
                 except Exception:
                     pass
         except Exception as e:
@@ -4535,13 +4544,13 @@ class MessagesScreen(Container):
             # Create new chat view with standard "chat" ID for CSS
             new_chat_view = ChatView(conversation_id=conversation_id, username=username, id="chat")
             self.mount(new_chat_view)
-            # Focus the new chat and scroll to bottom
+            # Focus the new chat, highlight last message, and scroll to bottom
             def _focus_and_scroll():
                 try:
                     new_chat_view.focus()
-                except Exception:
-                    pass
-                try:
+                    msgs = list(new_chat_view.query(".chat-message"))
+                    if msgs:
+                        new_chat_view.cursor_position = len(msgs) - 1
                     new_chat_view.scroll_end(animate=False)
                 except Exception:
                     pass
