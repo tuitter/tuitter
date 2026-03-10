@@ -4510,6 +4510,10 @@ class MessagesScreen(Container):
                 # No chat view exists, create it
                 chat_view = ChatView(conversation_id=conversation_id, username=username, id="chat")
                 self.mount(chat_view)
+                try:
+                    self.call_after_refresh(chat_view.focus)
+                except Exception:
+                    pass
         except Exception as e:
             # Handle error silently
             self._switching = False
@@ -4531,8 +4535,17 @@ class MessagesScreen(Container):
             # Create new chat view with standard "chat" ID for CSS
             new_chat_view = ChatView(conversation_id=conversation_id, username=username, id="chat")
             self.mount(new_chat_view)
-            # Scroll to bottom to show latest messages
-            self.call_after_refresh(lambda: new_chat_view.scroll_end(animate=False))
+            # Focus the new chat and scroll to bottom
+            def _focus_and_scroll():
+                try:
+                    new_chat_view.focus()
+                except Exception:
+                    pass
+                try:
+                    new_chat_view.scroll_end(animate=False)
+                except Exception:
+                    pass
+            self.call_after_refresh(_focus_and_scroll)
         except Exception as e:
             self.app.notify(f"Error creating chat: {e}", timeout=2)
         finally:
