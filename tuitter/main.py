@@ -9441,6 +9441,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # Prevent urllib3 warnings from breaking the TUI
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
+    
     pid_file = Path.home() / ".tuitter_pid"
     pid_file.write_text(str(os.getpid()))
     try:

@@ -163,6 +163,7 @@ $follow-text-2: #aaffaa;
 
 .image-open-hint {
     color: $dracula-purple;
+    margin-top: 1;
 }
 
 /* Hover and focus on the avatar should highlight the container box
