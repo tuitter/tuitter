@@ -1192,6 +1192,7 @@ class CommentPanel(Container):
         """Handle g+g key combination for top and escape from input"""
         # Don't process keys if app is in command mode
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
@@ -1810,6 +1811,8 @@ class NavTab(Static):
         self.screen_name = screen_name
 
     def on_click(self) -> None:
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         self.app.switch_screen(self.screen_name)
 
 
@@ -2363,6 +2366,8 @@ class NewPostDialog(ModalScreen):
         pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         btn_id = getattr(event.button, "id", None)
 
         if btn_id == "attach-photo":
@@ -2732,6 +2737,8 @@ class NewMessageDialog(ModalScreen):
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         if event.button.id == "dm-cancel":
             # Dismiss with falsy value
             self.dismiss(False)
@@ -2874,6 +2881,8 @@ class DeleteDraftDialog(ModalScreen):
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self.app.command_mode:
+            return
         btn_id = getattr(event.button, "id", None)
 
         if btn_id == "confirm-delete":
@@ -2976,6 +2985,8 @@ class DeletePostDialog(ModalScreen):
             self.dismiss(False)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         btn_id = event.button.id
         if btn_id == "confirm-delete":
             self._do_delete()
@@ -3066,6 +3077,8 @@ class DeleteCommentDialog(ModalScreen):
             self.dismiss(False)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         btn_id = event.button.id
         if btn_id == "confirm-delete":
             self._do_delete()
@@ -3339,6 +3352,7 @@ class TimelineFeed(VerticalScroll):
         """Handle g+g key combination for top and prevent escape from unfocusing"""
         # Don't process keys if app is in command mode
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
@@ -3555,6 +3569,7 @@ class FollowingFeed(VerticalScroll):
 
     def on_key(self, event) -> None:
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
@@ -3898,6 +3913,7 @@ class DiscoverFeed(VerticalScroll):
         """Handle g+g key combination for top and escape from search"""
         # Don't process keys if app is in command mode
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
@@ -4076,6 +4092,7 @@ class NotificationsFeed(VerticalScroll):
         """Handle g+g key combination for top and prevent escape from unfocusing"""
         # Don't process keys if app is in command mode
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
@@ -4309,6 +4326,7 @@ class ConversationsList(VerticalScroll):
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and prevent escape from unfocusing"""
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter"):
@@ -4716,6 +4734,7 @@ class ChatView(VerticalScroll):
     def on_key(self, event) -> None:
         """Handle Escape from the input so we remain in vim-navigation state."""
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter"):
@@ -5583,6 +5602,8 @@ class SettingsPanel(VerticalScroll):
                 self._update_file_btn_highlight()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         btn_id = getattr(event.button, "id", "")
 
         # Upload profile picture
@@ -5996,8 +6017,12 @@ class ProfileView(VerticalScroll):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle Follow/Unfollow/Message button presses on another user's profile."""
-        # Stop propagation to prevent double-clicks from parent handlers
+        # CRITICAL: Stop propagation to prevent double-clicks from parent handlers
         event.stop()
+
+        # Stop processing if app is in command mode to prevent accidental triggers while typing
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         event.prevent_default()
         
         btn_id = event.button.id
@@ -6277,6 +6302,7 @@ class ProfileView(VerticalScroll):
     def on_key(self, event) -> None:
         """Stop bubbling of navigation keys to prevent double-handling by TuitterApp."""
         if self.app.command_mode:
+            event.prevent_default()
             return
 
         if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter", "g"):
@@ -6811,9 +6837,8 @@ class ProfilePanel(VerticalScroll):
         if self.app.command_mode:
             return
         try:
-            # ProfileScreen is a Container switched via switch_screen(), not a pushed Screen
-            # So we need to switch back instead of popping
-            self.app.switch_screen("timeline")
+            # consistency: use the app-level action
+            self.app.action_show_timeline()
         except Exception:
             pass
 
@@ -6822,6 +6847,7 @@ class ProfilePanel(VerticalScroll):
         if event.key == "escape":
             # In command mode, let escape bubble up to the app handler
             if self.app.command_mode:
+                event.prevent_default()
                 return
             # Prevent escape from unfocusing important widgets inside panel
             try:
@@ -7026,9 +7052,10 @@ class DraftsPanel(VerticalScroll):
     def key_q(self) -> None:
         """Exit drafts screen with q key"""
         if self.app.command_mode:
+            # Although this is key_q (action), let's be safe if it's called as a handler
             return
         try:
-            self.app.switch_screen("timeline")
+            self.app.action_show_timeline()
         except Exception:
             pass
 
@@ -7137,6 +7164,8 @@ class DraftsPanel(VerticalScroll):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle draft action buttons."""
+        if self.app.command_mode or getattr(self.app, "_command_lockout", False):
+            return
         btn_id = event.button.id
 
         if btn_id and btn_id.startswith("open-draft-"):
@@ -7245,9 +7274,10 @@ class TuitterApp(App):
     _switching = False  # Flag to prevent concurrent screen switches
     # In-memory reactive drafts store so UI updates immediately without re-reading disk
     drafts_store = reactive([])
-    # Short-lived flag set when the comment panel was just closed so focus handlers
     # can avoid resetting restored cursor state.
     _just_closed_comment_panel = False
+    # Lockout flag to prevent Enter from triggering buttons after submitting a command
+    _command_lockout = False
 
     def load_drafts_store(self) -> None:
         """Load drafts from disk into the reactive in-memory store."""
@@ -7684,88 +7714,49 @@ class TuitterApp(App):
             return
         if screen_name == self.current_screen_name and not kwargs:
             return
+
         screen_map = {
-            "timeline": (
-                TimelineScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
-            ),
-            "discover": (
-                DiscoverScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [/] Search [:q] Quit",
-            ),
-            "notifications": (
-                NotificationsScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
-            ),
-            "messages": (
-                MessagesScreen,
-                "[0] Chat [9] Convos [1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
-            ),
-            "profile": (
-                ProfileScreen,
-                "[1-6] Screens [d] Drafts [j/k] Navigate [:q] Quit",
-            ),
-            "settings": (
-                SettingsScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
-            ),
-            "user_profile": (
-                ProfileScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [:m] Message [:q] Quit",
-            ),
-            "following": (
-                FollowingScreen,
-                "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit",
-            ),
-            "drafts": (
-                DraftsScreen,
-                "[1-6] Screens [p] Profile [j/k] Navigate [h/l] Select [Enter] Execute [:q] Quit",
-            ),
+            "timeline": (TimelineScreen, "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit"),
+            "discover": (DiscoverScreen, "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [/] Search [:q] Quit"),
+            "notifications": (NotificationsScreen, "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit"),
+            "messages": (MessagesScreen, "[0] Chat [9] Convos [1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit"),
+            "profile": (ProfileScreen, "[1-6] Screens [d] Drafts [j/k] Navigate [:q] Quit"),
+            "settings": (SettingsScreen, "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit"),
+            "user_profile": (ProfileScreen, "[1-6] Screens [p] Profile [d] Drafts [:m] Message [:q] Quit"),
+            "following": (FollowingScreen, "[1-6] Screens [p] Profile [d] Drafts [j/k] Navigate [:q] Quit"),
+            "drafts": (DraftsScreen, "[1-6] Screens [p] Profile [j/k] Navigate [h/l] Select [Enter] Execute [:q] Quit"),
         }
+
         if screen_name in screen_map:
-            self._switching = True  # Set flag to prevent concurrent switches
+            self._switching = True
             current_screen = self.screen
             ScreenClass, footer_text = screen_map[screen_name]
-
-            # Remove old screen containers synchronously before scheduling mount
-            for container in list(current_screen.query("#screen-container")):
-                container.remove()
-
-            # Instantiate the screen
-            screen_instance = ScreenClass(**kwargs)
-
-            def mount_new_screen():
-                current_screen.mount(screen_instance)
-                update_ui()
 
             def update_ui():
                 try:
                     header = current_screen.query_one("#app-header", Static)
+                    username = get_username() or getattr(api, "handle", "yourname")
                     if screen_name == "user_profile" and "username" in kwargs:
-                        header.update(f"tuitter [@{kwargs['username']}] @yourname")
+                        header.update(f"tuitter [@{kwargs['username']}] @{username}")
                     elif screen_name == "messages" and "username" in kwargs:
-                        header.update(f"tuitter [dm:@{kwargs['username']}] @yourname")
+                        header.update(f"tuitter [dm:@{kwargs['username']}] @{username}")
                     else:
-                        header.update(f"tuitter [{screen_name}] @yourname")
+                        header.update(f"tuitter [{screen_name}] @{username}")
                 except Exception:
                     pass
 
-                # Update footer
                 try:
                     current_screen.query_one("#app-footer", Static).update(footer_text)
                 except Exception:
                     pass
 
-                # Update top navbar
                 try:
                     current_screen.query_one("#top-navbar", TopNav).update_active(screen_name)
                 except Exception:
                     pass
 
-                # Update sidebar (if it exists)
                 try:
                     sidebar = current_screen.query_one("#sidebar", Sidebar)
-                    # For user profile view, highlight discover in sidebar
                     if screen_name == "user_profile":
                         sidebar.update_active("discover")
                     elif screen_name == "messages":
@@ -7777,47 +7768,54 @@ class TuitterApp(App):
 
                 self.current_screen_name = screen_name
 
-                # Focus the main content area after screen switch
-                # Relies on component's on_mount
-
             def mount_new_screen():
-                # Old containers should already be removed, but double-check
+                # 1) Synchronously remove ALL old containers to avoid duplicate IDs
                 for container in list(current_screen.query("#screen-container")):
-                    container.remove()
+                    try:
+                        container.remove()
+                    except Exception:
+                        pass
 
-                # Instantiate the screen without passing unknown kwargs to the
-                # constructor (some Screen classes don't accept arbitrary args).
+                # 2) Instantiate new screen with correct ID
                 try:
+                    # Some constructors might not accept id as first arg
                     screen_instance = ScreenClass(id="screen-container")
                 except Exception:
-                    # Fallback to calling with kwargs if constructor accepts them
-                    screen_instance = ScreenClass(id="screen-container", **kwargs)
+                    try:
+                        screen_instance = ScreenClass(id="screen-container", **kwargs)
+                    except Exception:
+                        screen_instance = ScreenClass(**kwargs)
+                        screen_instance.id = "screen-container"
 
-                # Set any provided kwargs as attributes on the screen instance
+                # 3) Apply remaining kwargs as attributes
+                for k, v in kwargs.items():
+                    try:
+                        setattr(screen_instance, k, v)
+                    except Exception:
+                        pass
+
+                # 4) Mount and trigger UI updates
                 try:
-                    for k, v in kwargs.items():
-                        try:
-                            setattr(screen_instance, k, v)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-                # Mount the new screen
-                current_screen.mount(screen_instance)
-
-                # Schedule UI update after mount completes
-                try:
+                    current_screen.mount(screen_instance)
                     self.call_after_refresh(update_ui)
                 except Exception:
-                    update_ui()
+                    try:
+                        current_screen.mount(screen_instance)
+                        update_ui()
+                    except Exception:
+                        pass
 
-            # Mount the new screen and ensure update_ui runs after mount completes
+            # Execute the switch
             try:
                 self.call_after_refresh(mount_new_screen)
             except Exception:
                 mount_new_screen()
-            self.set_timer(0.1, lambda: setattr(self, "_switching", False))
+            
+            # Reset switching flag after some time
+            try:
+                self.set_timer(0.1, lambda: setattr(self, "_switching", False))
+            except Exception:
+                self._switching = False
 
 
 
@@ -8567,6 +8565,13 @@ class TuitterApp(App):
                 except:
                     pass
                 self.command_mode = False
+                # Set lockout to prevent this Enter from triggering focused buttons
+                # via bubbled Button.Pressed messages that arrive after we clear command_mode.
+                try:
+                    self._command_lockout = True
+                    self.set_timer(0.2, lambda: setattr(self, "_command_lockout", False))
+                except Exception:
+                    pass
 
                 # Process command
                 if command.startswith(":"):
