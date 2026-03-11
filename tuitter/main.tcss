@@ -161,6 +161,10 @@ $follow-text-2: #aaffaa;
     content-align: center middle;
 }
 
+.image-open-hint {
+    color: $dracula-purple;
+}
+
 /* Hover and focus on the avatar should highlight the container box
    instead of highlighting the inner ascii text. This makes the
    interaction feel like a card focus rather than text selection. */
@@ -421,6 +425,26 @@ DraftsScreen {
     border-title-align: center;
     border-title-color: $color-orange;
     border-title-style: bold;
+}
+
+/* Image Viewer Screen */
+ImageViewerScreen {
+    background: $bg-dark 85%;
+    align: center top;
+    padding: 2 4;
+}
+
+#image-viewer-scroll {
+    width: 100%;
+    height: 100%;
+    border: round $border-subtle;
+}
+
+#image-viewer-footer {
+    dock: bottom;
+    text-align: center;
+    padding: 0 0 1 0;
+    color: $text-muted;
 }
 
 /* Draft Box Styling */

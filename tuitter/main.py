@@ -964,6 +964,24 @@ class CommentFeed(VerticalScroll):
         except Exception:
             pass
 
+    def key_o(self) -> None:
+        """Open full-size image viewer if the active item has an image"""
+        if self.app.command_mode:
+            return
+        
+        try:
+            items = self._get_navigable_items()
+            if 0 <= self.cursor_position < len(items):
+                item = items[self.cursor_position]
+                if isinstance(item, PostItem) and item.has_ascii_art:
+                    attachments = getattr(item.post, "attachments", [])
+                    for attachment in attachments:
+                        if attachment.get("type") in ("ascii_photo", "image_url"):
+                            self.app.push_screen(ImageViewerScreen(attachment=attachment))
+                            return
+        except Exception:
+            pass
+
     def key_q(self) -> None:
         """Exit comment screen with q key"""
         if self.app.command_mode:
@@ -1233,14 +1251,6 @@ class CommentPanel(Container):
 class ImageViewerScreen(ModalScreen):
     """Modal dialog for viewing full-size images unconstrained by height."""
 
-    DEFAULT_CSS = """
-    ImageViewerScreen {
-        background: rgba(0,0,0,0.85);
-        align: center top;
-        padding: 2 4;
-    }
-    """
-
     BINDINGS = [
         Binding("escape", "dismiss", "Close", priority=True),
         Binding("q", "dismiss", "Close", priority=True),
@@ -1260,17 +1270,7 @@ class ImageViewerScreen(ModalScreen):
 
     def on_mount(self) -> None:
         scroll = self.query_one("#image-viewer-scroll", VerticalScroll)
-        scroll.styles.width = "100%"
-        scroll.styles.height = "100%"
-        scroll.styles.border = ("round", "#888888")
         scroll.border_title = "Image Viewer"
-        
-        footer = self.query_one("#image-viewer-footer", Static)
-        footer.styles.dock = "bottom"
-        footer.styles.text_align = "center"
-        footer.styles.padding = (0, 0, 1, 0)
-        footer.styles.color = "#aaaaaa"
-        
         self.call_after_refresh(self._load_image)
 
     def on_resize(self) -> None:
@@ -1569,7 +1569,7 @@ class PostItem(Static):
                     if url:
                         # Empty placeholder; filled after layout in on_mount
                         yield Static("⠀", classes="ascii-art art-placeholder", markup=False)
-            yield Static("[#888888]\\[o] open[/]", markup=True)
+            yield Static("[o] open", classes="image-open-hint", markup=False)
 
         # Video player if post has video
         if self.has_video and Path(self.post.video_path).exists():
