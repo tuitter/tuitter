@@ -2128,7 +2128,7 @@ Button.-error:hover {
 
 /* ========== NEW POST DIALOG STYLES ========== */
 
-NewPostDialog, DeleteDraftDialog, DeletePostDialog, NewMessageDialog {
+NewPostDialog, DeleteDraftDialog, DeletePostDialog, NewMessageDialog, DeleteCommentDialog {
     align: center middle;
 }
 
@@ -2416,48 +2416,54 @@ Button#draft-button:hover {
 }
 
 /* Confirm button — unselected: dim red; selected: vivid red */
-DeletePostDialog Button#confirm-delete {
+DeletePostDialog Button#confirm-delete,
+DeleteCommentDialog Button#confirm-delete-comment {
     background: $danger-bg;
     color: $danger-text;
     border: solid $danger-border;
     height: 5;
 }
 
-DeletePostDialog Button#confirm-delete.selected {
+DeletePostDialog Button#confirm-delete.selected,
+DeleteCommentDialog Button#confirm-delete-comment.selected {
     background: $dracula-red;
     border: heavy $accent-red-hover;
     color: $text-primary;
 }
 
-DeletePostDialog Button#confirm-delete:hover {
+DeletePostDialog Button#confirm-delete:hover,
+DeleteCommentDialog Button#confirm-delete-comment:hover {
     background: $dracula-red;
     border: heavy $accent-red-hover;
     color: $text-primary;
 }
 
 /* Cancel button — unselected: dim; selected: vivid cyan */
-DeletePostDialog Button#cancel-delete {
+DeletePostDialog Button#cancel-delete,
+DeleteCommentDialog Button#cancel-delete-comment {
     background: $bg-dark;
     color: $text-muted;
     border: solid $color-cyan;
     height: 5;
 }
 
-DeletePostDialog Button#cancel-delete.selected {
+DeletePostDialog Button#cancel-delete.selected,
+DeleteCommentDialog Button#cancel-delete-comment.selected {
     background: $bg-highlight;
     border: heavy $accent-cyan;
     color: $text-primary;
     text-style: bold;
 }
 
-DeletePostDialog Button#cancel-delete:hover {
+DeletePostDialog Button#cancel-delete:hover,
+DeleteCommentDialog Button#cancel-delete-comment:hover {
     background: $bg-highlight;
     border: heavy $accent-cyan;
     color: $text-primary;
 }
 
 /* Default dialog button styles */
-Button#cancel-button, Button#cancel-delete {
+Button#cancel-button, Button#cancel-delete, Button#cancel-delete-comment {
     background: $bg-dark;
     color: $text-primary;
     border: solid $color-cyan;
@@ -2483,7 +2489,7 @@ DeleteDraftDialog Button#confirm-delete.selected {
     color: $text-primary;
 }
 
-Button#cancel-button:hover, Button#cancel-delete:hover {
+Button#cancel-button:hover, Button#cancel-delete:hover, Button#cancel-delete-comment:hover {
     background: $bg-highlight;
     border: heavy $accent-cyan;
     color: $text-primary;
@@ -2497,17 +2503,7 @@ DeleteDraftDialog Button#cancel-delete.selected {
     text-style: bold;
 }
 
-Button#confirm-delete {
-    background: $accent-red;
-    color: $text-primary;
-    border: solid $accent-red;
-    height: 5;
-}
 
-Button#confirm-delete:hover {
-    background: $accent-red-hover;
-    border: solid $accent-red-hover;
-}
 
 .attachments-list {
     overflow-x: hidden;
@@ -2575,3 +2571,56 @@ Toast.-error {
     border-left: wide $color-red;
     background: $danger-bg 95%;
 }
+
+/* Delete Comment Dialog Styling */
+DeleteCommentDialog {
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#delete-comment-wrapper {
+    width: auto;
+    height: auto;
+    layout: vertical;
+    align: center middle;
+}
+
+#delete-comment-container {
+    width: 70;
+    height: auto;
+    background: $bg-dark;
+    border: round $color-cyan;
+    padding: 2 3;
+}
+
+#delete-comment-title {
+    color: $color-cyan;
+    text-style: bold;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#delete-comment-buttons {
+    layout: horizontal;
+    height: auto;
+    width: 100%;
+    align: center middle;
+    margin-top: 1;
+}
+
+#delete-comment-buttons Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
+#delete-comment-wrapper > .vim-hints {
+    width: 100%;
+    text-align: center;
+    color: $text-muted;
+    text-style: italic;
+    height: auto;
+    padding: 1 0 0 0;
+}
+
+

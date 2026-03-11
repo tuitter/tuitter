@@ -165,6 +165,7 @@ class APIInterface:
     # comments
     def get_comments(self, post_id: int) -> List[Dict[str, Any]]: ...
     def add_comment(self, post_id: int, text: str) -> Dict[str, Any]: ...
+    def delete_comment(self, comment_id: int) -> bool: ...
     def like_comment(self, comment_id: int) -> bool: ...
     def unlike_comment(self, comment_id: int) -> bool: ...
     # follow / following
@@ -550,6 +551,10 @@ class RealAPI(APIInterface):
     def add_comment(self, post_id: int, text: str) -> Dict[str, Any]:
         data = self._post(f"/posts/{post_id}/comments", json_payload={"text": text})
         return data
+
+    def delete_comment(self, comment_id: int) -> bool:
+        self._delete(f"/comments/{comment_id}")
+        return True
 
     def like_comment(self, comment_id: int) -> bool:
         self._post(f"/comments/{comment_id}/like")

@@ -749,6 +749,8 @@ class CommentItem(Widget):
         super().__init__(**kwargs)
         self.comment_id = comment_data.get("id")
         self.author = comment_data.get("user", "unknown")
+        # Expose a generic entity interface for the generic :del command hook
+        self.comment = type("CommentEntity", (), {"id": self.comment_id, "author": self.author})()
         self.comment_text = comment_data.get("text", "")
         ts = comment_data.get("timestamp") or comment_data.get("created_at") or datetime.now().isoformat()
         try:
@@ -2990,6 +2992,95 @@ class DeletePostDialog(ModalScreen):
                 pass
 
 
+class DeleteCommentDialog(ModalScreen):
+    """Modal dialog for confirming comment deletion."""
+
+    cursor_position = reactive(0)  # 0 = Yes, 1 = Cancel
+
+    def __init__(self, comment_id: int, comment_item=None):
+        super().__init__()
+        self.comment_id = comment_id
+        self.comment_item = comment_item
+
+    def on_mount(self) -> None:
+        self.cursor_position = 0
+
+    def compose(self) -> ComposeResult:
+        with Container(id="delete-comment-wrapper"):
+            with Container(id="delete-comment-container"):
+                yield Static("Delete Comment?", id="delete-comment-title")
+                yield Static(
+                    "Are you sure you want to delete this comment? This cannot be undone.",
+                    classes="dialog-message",
+                )
+                with Container(id="delete-comment-buttons"):
+                    confirm_btn = Button("\u2713 Yes, Delete", id="confirm-delete-comment")
+                    cancel_btn = Button("Cancel", id="cancel-delete-comment")
+                    if self.cursor_position == 0:
+                        confirm_btn.add_class("selected")
+                    else:
+                        cancel_btn.add_class("selected")
+                    yield confirm_btn
+                    yield cancel_btn
+            yield Static(
+                "\\[h/l] select  |  \\[enter] confirm  |  \\[esc] cancel",
+                classes="vim-hints",
+            )
+
+    def _update_cursor(self) -> None:
+        try:
+            confirm_btn = self.query_one("#confirm-delete-comment", Button)
+            cancel_btn = self.query_one("#cancel-delete-comment", Button)
+            if self.cursor_position == 0:
+                confirm_btn.add_class("selected")
+                cancel_btn.remove_class("selected")
+            else:
+                cancel_btn.add_class("selected")
+                confirm_btn.remove_class("selected")
+        except Exception:
+            pass
+
+    def watch_cursor_position(self, old: int, new: int) -> None:
+        self._update_cursor()
+
+    def key_h(self) -> None:
+        self.cursor_position = 0
+
+    def key_l(self) -> None:
+        self.cursor_position = 1
+
+    def key_escape(self) -> None:
+        self.dismiss(False)
+
+    def key_enter(self) -> None:
+        if self.cursor_position == 0:
+            self._do_delete()
+        else:
+            self.dismiss(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "confirm-delete-comment":
+            self._do_delete()
+        elif btn_id == "cancel-delete-comment":
+            self.dismiss(False)
+
+    def _do_delete(self) -> None:
+        try:
+            api.delete_comment(self.comment_id)
+            # Remove the comment widget from the DOM
+            if self.comment_item is not None:
+                try:
+                    self.comment_item.remove()
+                except Exception:
+                    pass
+            self.dismiss(True)
+        except Exception as e:
+            self.dismiss(False)
+            try:
+                self.app.notify(f"Failed to delete comment: {e}", severity="error")
+            except Exception:
+                pass
 # ───────── Screens ─────────
 
 
@@ -9150,7 +9241,24 @@ class TuitterApp(App):
                             pass
                 elif command == "del":
                     # Delete the currently focused post (only if it belongs to the logged-in user)
-                    def _get_focused_post_for_delete():
+                    def _get_focused_item_for_delete():
+                        # 1) Prioritize CommentFeed (comment screens/panels) overlay first
+                        try:
+                            comment_feeds = self.screen.query("CommentFeed")
+                            if comment_feeds:
+                                comment_feed = comment_feeds.first()
+                                items = comment_feed._get_navigable_items()
+                                idx = getattr(comment_feed, "cursor_position", 0)
+                                if 0 <= idx < len(items):
+                                    item = items[idx]
+                                    if type(item).__name__ == "PostItem":
+                                        return getattr(item, "post", None), item, "post"
+                                    elif "comment-item" in getattr(item, "classes", []):
+                                        return getattr(item, "comment", None), item, "comment"
+                        except Exception:
+                            pass
+
+                        # 2) Fallback to standard app background feeds depending on current underlying tab state
                         screen = self.current_screen_name
                         if screen == "timeline":
                             try:
@@ -9159,7 +9267,7 @@ class TuitterApp(App):
                                 idx = getattr(timeline_feed, "cursor_position", 0)
                                 if 0 <= idx < len(items):
                                     pi = items[idx]
-                                    return getattr(pi, "post", None), pi
+                                    return getattr(pi, "post", None), pi, "post"
                             except Exception:
                                 pass
                         elif screen == "discover":
@@ -9169,7 +9277,7 @@ class TuitterApp(App):
                                 idx = getattr(discover_feed, "cursor_position", 0)
                                 if 0 <= idx < len(items):
                                     pi = items[idx]
-                                    return getattr(pi, "post", None), pi
+                                    return getattr(pi, "post", None), pi, "post"
                             except Exception:
                                 pass
                         elif screen == "following":
@@ -9179,7 +9287,7 @@ class TuitterApp(App):
                                 idx = getattr(following_feed, "cursor_position", 0)
                                 if 0 <= idx < len(items):
                                     pi = items[idx]
-                                    return getattr(pi, "post", None), pi
+                                    return getattr(pi, "post", None), pi, "post"
                             except Exception:
                                 pass
                         elif screen == "profile":
@@ -9193,27 +9301,35 @@ class TuitterApp(App):
                                 r = getattr(profile_view, "cursor_row", 0)
                                 if 0 <= r < len(rows) and rows[r]:
                                     pi = rows[r][0]
-                                    return getattr(pi, "post", None), pi
+                                    return getattr(pi, "post", None), pi, "post"
                             except Exception:
                                 pass
-                        return None, None
 
-                    del_post, del_post_item = _get_focused_post_for_delete()
-                    if del_post is not None:
+                        return None, None, None
+
+                    del_entity, del_widget, entity_type = _get_focused_item_for_delete()
+                    if del_entity is not None:
                         current_user = (get_username() or getattr(api, "handle", "") or "").lower()
-                        post_author = (getattr(del_post, "author", "") or "").lower()
-                        if post_author == current_user:
+                        item_author = (getattr(del_entity, "author", "") or "").lower()
+                        if item_author == current_user:
                             def _on_delete_result(deleted):
                                 if deleted:
-                                    self.notify("Post deleted!", severity="success")
-                            self.push_screen(
-                                DeletePostDialog(del_post.id, post_item=del_post_item),
-                                _on_delete_result,
-                            )
+                                    self.notify(f"{entity_type.capitalize()} deleted!", severity="success")
+                            
+                            if entity_type == "post":
+                                self.push_screen(
+                                    DeletePostDialog(del_entity.id, post_item=del_widget),
+                                    _on_delete_result,
+                                )
+                            elif entity_type == "comment":
+                                self.push_screen(
+                                    DeleteCommentDialog(del_entity.id, comment_item=del_widget),
+                                    _on_delete_result,
+                                )
                         else:
-                            self.notify("You can only delete your own posts.", severity="warning")
+                            self.notify(f"You can only delete your own {entity_type}s.", severity="warning")
                     else:
-                        self.notify("No post selected.", severity="warning")
+                        self.notify("No post or comment selected.", severity="warning")
 
                 elif command in ("f", "follow"):
                     # Follow the user currently displayed in the profile
