@@ -2991,7 +2991,6 @@ class DeletePostDialog(ModalScreen):
             except Exception:
                 pass
 
-
 class DeleteCommentDialog(ModalScreen):
     """Modal dialog for confirming comment deletion."""
 
@@ -3006,16 +3005,16 @@ class DeleteCommentDialog(ModalScreen):
         self.cursor_position = 0
 
     def compose(self) -> ComposeResult:
-        with Container(id="delete-comment-wrapper"):
-            with Container(id="delete-comment-container"):
-                yield Static("Delete Comment?", id="delete-comment-title")
+        with Container(id="delete-post-wrapper"):
+            with Container(id="delete-post-container"):
+                yield Static("Delete Comment?", id="delete-post-title")
                 yield Static(
                     "Are you sure you want to delete this comment? This cannot be undone.",
                     classes="dialog-message",
                 )
-                with Container(id="delete-comment-buttons"):
-                    confirm_btn = Button("\u2713 Yes, Delete", id="confirm-delete-comment")
-                    cancel_btn = Button("Cancel", id="cancel-delete-comment")
+                with Container(id="delete-post-buttons"):
+                    confirm_btn = Button("\u2713 Yes, Delete", id="confirm-delete")
+                    cancel_btn = Button("Cancel", id="cancel-delete")
                     if self.cursor_position == 0:
                         confirm_btn.add_class("selected")
                     else:
@@ -3029,8 +3028,8 @@ class DeleteCommentDialog(ModalScreen):
 
     def _update_cursor(self) -> None:
         try:
-            confirm_btn = self.query_one("#confirm-delete-comment", Button)
-            cancel_btn = self.query_one("#cancel-delete-comment", Button)
+            confirm_btn = self.query_one("#confirm-delete", Button)
+            cancel_btn = self.query_one("#cancel-delete", Button)
             if self.cursor_position == 0:
                 confirm_btn.add_class("selected")
                 cancel_btn.remove_class("selected")
@@ -3060,9 +3059,9 @@ class DeleteCommentDialog(ModalScreen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
-        if btn_id == "confirm-delete-comment":
+        if btn_id == "confirm-delete":
             self._do_delete()
-        elif btn_id == "cancel-delete-comment":
+        elif btn_id == "cancel-delete":
             self.dismiss(False)
 
     def _do_delete(self) -> None:
@@ -3081,6 +3080,8 @@ class DeleteCommentDialog(ModalScreen):
                 self.app.notify(f"Failed to delete comment: {e}", severity="error")
             except Exception:
                 pass
+
+
 # ───────── Screens ─────────
 
 
