@@ -2548,3 +2548,30 @@ Button.profile-action-btn.vim-row-focus {
     text-align: center;
     content-align: center middle;
 }
+
+/* Toast Notifications */
+Toast {
+    background: $bg-dark 95%;
+    color: $text-primary;
+    border: none;
+    border-left: wide $primary;
+    padding: 1 2;
+    margin: 1 2;
+}
+
+Toast.-information {
+    border-left: wide $primary;
+}
+
+Toast.-success {
+    border-left: wide $color-green;
+}
+
+Toast.-warning {
+    border-left: wide $color-orange;
+}
+
+Toast.-error {
+    border-left: wide $color-red;
+    background: $danger-bg 95%;
+}
