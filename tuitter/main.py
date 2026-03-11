@@ -1188,16 +1188,16 @@ class CommentPanel(Container):
         if self.app.command_mode:
             return
         f = self._feed()
-        if f and hasattr(f, "key_q"):
-            try:
-                f.key_q()
-            except Exception:
-                pass
-
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and escape from input"""
         # Don't process keys if app is in command mode
         if self.app.command_mode:
+            return
+
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
             return
 
         if event.key == "escape":
@@ -1213,15 +1213,23 @@ class CommentPanel(Container):
                     return
             except Exception:
                 pass
+            
+            # Prevent escape from unfocusing feed/panel
+            event.prevent_default()
+            event.stop()
+            return
 
         if event.key == "g":
             now = time.time()
             if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
                 self.cursor_position = 0
                 event.prevent_default()
+                event.stop()
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
+            return  # End of g handling
+
 
         # If 'd' pressed, navigate to drafts. Close embedded panel first if present.
         if event.key == "d":
@@ -3333,6 +3341,13 @@ class TimelineFeed(VerticalScroll):
         if self.app.command_mode:
             return
 
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
+            # These are handled by key_* methods in this class or base class.
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            return
+
         if event.key == "escape":
             # Prevent escape from unfocusing the feed
             event.prevent_default()
@@ -3343,9 +3358,12 @@ class TimelineFeed(VerticalScroll):
             if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
                 self.cursor_position = 0
                 event.prevent_default()
+                event.stop()
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
+                # We don't stop 'g' here because it might be the start of a command
+                # or handled elsewhere if not followed by another 'g'.
 
 
 class TimelineScreen(Container):
@@ -3538,15 +3556,25 @@ class FollowingFeed(VerticalScroll):
     def on_key(self, event) -> None:
         if self.app.command_mode:
             return
+
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
+            # These are handled by key_* methods in this class or base class.
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            return
+
         if event.key == "escape":
             event.prevent_default()
             event.stop()
             return
+
         if event.key == "g":
             now = time.time()
             if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
                 self.cursor_position = 0
                 event.prevent_default()
+                event.stop()
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
@@ -3872,6 +3900,13 @@ class DiscoverFeed(VerticalScroll):
         if self.app.command_mode:
             return
 
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
+            # These are handled by key_* methods in this class or base class.
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            return
+
         if event.key == "escape":
             # If search input has focus, move cursor to first post and return focus to feed
             try:
@@ -3886,33 +3921,19 @@ class DiscoverFeed(VerticalScroll):
                     return
             except Exception:
                 pass
+            
+            # Prevent escape from unfocusing feed if not coming from input
+            event.prevent_default()
+            event.stop()
+            return
 
         # If cursor is on search input (position 0) and user types a letter/number/space
         # Focus the search input to start typing
         if self.cursor_position == 0:
             # Check if it's a typeable character (letter, number, space, punctuation except vim keys)
             if len(event.key) == 1 and event.key not in [
-                "j",
-                "k",
-                "g",
-                "G",
-                "w",
-                "b",
-                "h",
-                "l",
-                "0",
-                "1",
-                "2",
-                "3",
-                "4",
-                "5",
-                "6",
-                "p",
-                "d",
-                "i",
-                "q",
-                ":",
-                "/",
+                "j", "k", "g", "G", "w", "b", "h", "l",
+                "0", "1", "2", "3", "4", "5", "6", "p", "d", "i", "q", ":", "/"
             ]:
                 try:
                     search_input = self.query_one("#discover-search", Input)
@@ -3927,6 +3948,7 @@ class DiscoverFeed(VerticalScroll):
             if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
                 self.cursor_position = 0
                 event.prevent_default()
+                event.stop()
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
@@ -4056,16 +4078,25 @@ class NotificationsFeed(VerticalScroll):
         if self.app.command_mode:
             return
 
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
+            # These are handled by key_* methods in this class or base class.
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            return
+
         if event.key == "escape":
             # Prevent escape from unfocusing the feed
             event.prevent_default()
             event.stop()
             return
+
         if event.key == "g":
             now = time.time()
             if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
                 self.cursor_position = 0
                 event.prevent_default()
+                event.stop()
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
@@ -4277,19 +4308,27 @@ class ConversationsList(VerticalScroll):
 
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and prevent escape from unfocusing"""
+        if self.app.command_mode:
+            return
+
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter"):
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            return
+
         if event.key == "escape":
-            # In command mode, let escape bubble up to the app handler
-            if self.app.command_mode:
-                return
             # Prevent escape from unfocusing the conversation list
             event.prevent_default()
             event.stop()
             return
+
         if event.key == "g":
             now = time.time()
             if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
                 self.cursor_position = 0
                 event.prevent_default()
+                event.stop()
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
@@ -4679,6 +4718,12 @@ class ChatView(VerticalScroll):
         if self.app.command_mode:
             return
 
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter"):
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            return
+
         if event.key == "escape":
             try:
                 inp = self.query_one("#message-input", Input)
@@ -4701,6 +4746,21 @@ class ChatView(VerticalScroll):
                     return
             except Exception:
                 pass
+            
+            # Prevent escape from unfocusing view
+            event.prevent_default()
+            event.stop()
+            return
+
+        if event.key == "g":
+            now = time.time()
+            if hasattr(self, "last_g_time") and now - self.last_g_time < 0.5:
+                self.cursor_position = 0
+                event.prevent_default()
+                event.stop()
+                delattr(self, "last_g_time")
+            else:
+                self.last_g_time = now
 
 
 class MessagesScreen(Container):
@@ -5872,6 +5932,7 @@ class ProfileView(VerticalScroll):
 
             bio_container = Container(classes="profile-bio-container")
             bio_container.border_title = "Bio"
+            bio_container.can_focus = True  # Make the bio container focusable for navigation
             with bio_container:
                 bio_text = self.profile.get("bio", "") or ""
                 if bio_text.strip() == "":
@@ -5935,6 +5996,10 @@ class ProfileView(VerticalScroll):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle Follow/Unfollow/Message button presses on another user's profile."""
+        # Stop propagation to prevent double-clicks from parent handlers
+        event.stop()
+        event.prevent_default()
+        
         btn_id = event.button.id
         target = self.profile.get("username") or self.profile.get("handle", "")
         if btn_id == "follow-user-btn":
@@ -6208,6 +6273,27 @@ class ProfileView(VerticalScroll):
                     btn.remove_class("action-selected")
         except Exception:
             pass
+
+    def on_key(self, event) -> None:
+        """Stop bubbling of navigation keys to prevent double-handling by TuitterApp."""
+        if self.app.command_mode:
+            return
+
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter", "g"):
+            # These are handled by key_* methods or specialized logic in this class.
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            
+            # Manually call the key handler if it's a 'g' (since key_g handles its own timing)
+            if event.key == "g":
+                self.key_g()
+            return
+
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            return
 
     # Key handlers
     def key_j(self) -> None:
@@ -6948,18 +7034,21 @@ class DraftsPanel(VerticalScroll):
 
     def on_key(self, event) -> None:
         """Handle g+g key combination for top, enter for actions, and escape for command mode"""
+        if self.app.command_mode:
+            return
+
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u"):
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+            event.stop()
+            return
+
         if event.key == "escape":
-            # If in command mode, let the app handle it (don't stop propagation)
-            if self.app.command_mode:
-                # Don't prevent or stop - let it bubble up to app's on_key
-                return
             # Otherwise prevent escape from unfocusing the drafts panel
             event.prevent_default()
             event.stop()
             return
         if event.key == "enter":
-            if self.app.command_mode:
-                return
             event.prevent_default()
             event.stop()
             try:
