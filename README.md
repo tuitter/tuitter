@@ -60,16 +60,6 @@ pip install "git+https://github.com/tuitter/tuitter.git"
 tuitter
 ```
 
-### Optional: video-to-ASCII support
-
-The base install is lightweight (~50 MB). If you also want to convert video files to ASCII art, install the `video` extra (adds OpenCV + NumPy, ~450 MB):
-
-```bash
-pipx inject tuitter "git+https://github.com/tuitter/tuitter.git[video]"
-# or during initial install:
-pipx install "git+https://github.com/tuitter/tuitter.git[video]"
-```
-
 ### Installing Python (if needed)
 
 | Platform      | Command                                                                                |
@@ -82,7 +72,6 @@ pipx install "git+https://github.com/tuitter/tuitter.git[video]"
 
 ## Troubleshooting
 
-- If video conversion fails, ensure `ffmpeg` is installed and on PATH.
 - If file dialogs fail, install your OS's `tkinter` package (eg. `sudo apt install python3-tk` on Debian/Ubuntu).
 
 ## Why people love Tuitter
@@ -90,7 +79,7 @@ pipx install "git+https://github.com/tuitter/tuitter.git[video]"
 - Speed & focus — keyboard-first controls and lightweight rendering make it fast to scan timelines and compose replies.
 - Minimal context switching — keep your hands on the keyboard and stay inside your terminal workflows.
 - Privacy-forward — tokens are kept locally and the client communicates with the official hosted backend operated by the Tuitter team.
-- Fun & expressive — convert images and videos to ASCII art and create playful profile pictures with the built-in generator.
+- Fun & expressive — convert images to high-quality braille/ASCII art and create playful profile pictures with the built-in generator.
 
 ## Who should try it
 
@@ -103,10 +92,10 @@ pipx install "git+https://github.com/tuitter/tuitter.git[video]"
 - **Instant Navigation**: Global hotkeys (`1`-`8`, `p`, `d`) to jump between screens instantly.
 - **Vim-style controls**: Native movement via `j`, `k`, `h`, `l`, `gg`, `G`, and `ctrl+d/u`.
 - **Command Mode**: Power users can use `:` (colon) to perform advanced actions (eg. `:del` to delete, `:q` to quit) or jump screens.
-- **Full-size Media Viewer**: Press `o` on any post with an image or video to open it in a full-resolution modal viewer.
+- **Full-size Media Viewer**: Press `o` on any post with an image to open it in a full-resolution modal viewer.
 - **Complete Feature Set**: Timeline, Discover, Following, Notifications, Messages, and Settings screens.
 - **Advanced Drafting**: Robust in-memory drafts system with image preview and scaling.
-- **Expressive ASCII**: Built-in ASCII avatar generator and high-quality image/video → braille art conversion.
+- **Expressive ASCII**: Built-in ASCII avatar generator and high-quality image → braille art conversion (video support coming soon).
 
 ## Keyboard controls
 
@@ -121,7 +110,7 @@ Tuitter is designed to be used entirely from the keyboard.
 | `h` / `l`       | Navigate left / right (in panels or posts)  |
 | `gg` / `G`      | Jump to top / bottom                        |
 | `ctrl+d` / `u`  | Scroll half-page down / up                  |
-| `o`             | Open media (full-size image/video viewer)   |
+| `o`             | Open media (full-size image viewer)         |
 | `n`             | Compose new post                            |
 | `:`             | Enter Command Mode (eg. `:q`, `:del`)       |
 | `q`             | Close modal or quit (from timeline)         |
