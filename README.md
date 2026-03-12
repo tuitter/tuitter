@@ -107,6 +107,23 @@ pipx install "git+https://github.com/tuitter/tuitter.git[video]"
 - **Advanced Drafting**: Robust in-memory drafts system with image preview and scaling.
 - **Expressive ASCII**: Built-in ASCII avatar generator and high-quality image/video → braille art conversion.
 
+## Keyboard controls
+
+Tuitter is designed to be used entirely from the keyboard.
+
+| Key             | Action                                      |
+| --------------- | ------------------------------------------- |
+| `1` - `6`       | Switch screens (Timeline, Discover, etc.)   |
+| `j` / `k`       | Navigate down / up                          |
+| `h` / `l`       | Navigate left / right (in panels or posts)  |
+| `gg` / `G`      | Jump to top / bottom                        |
+| `ctrl+d` / `u`  | Scroll half-page down / up                  |
+| `o`             | Open media (full-size image/video viewer)   |
+| `n`             | Compose new post                            |
+| `:`             | Enter Command Mode (eg. `:q`, `:p`, `:1-6`) |
+| `q`             | Close modal or quit (from timeline)         |
+| `esc`           | Exit input/command mode or dismiss modals   |
+
 ## Authentication & reference backend
 
 Tuitter communicates with an HTTP backend using OIDC ID tokens (the reference deployment uses AWS Cognito). The packaged client works with the official hosted backend operated by the Tuitter team. Tokens are stored locally using `keyring` when available or a DPAPI-encrypted fallback on Windows.
