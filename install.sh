@@ -50,9 +50,9 @@ fi
 # Fetch download URL - tries stable release first, then falls back to pre-releases
 fetch_url() {
   if command -v curl >/dev/null 2>&1; then
-    _get() { curl -fsSL "$1"; }
+    _get() { curl -fsSL "$1" 2>/dev/null; }
   else
-    _get() { wget -qO- "$1"; }
+    _get() { wget -qO- "$1" 2>/dev/null; }
   fi
 
   # Try stable release first

@@ -27,7 +27,7 @@ Write-Host ""
 function Get-DownloadUrl {
     # Try stable release first
     try {
-        $r = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
+        $r = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing -ErrorAction SilentlyContinue
         foreach ($a in $r.assets) {
             if ($a.name -eq $AssetName) { return [string]$a.browser_download_url }
         }
@@ -35,7 +35,7 @@ function Get-DownloadUrl {
 
     # Fall back to most recent release including pre-releases
     try {
-        $list = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" -UseBasicParsing
+        $list = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" -UseBasicParsing -ErrorAction SilentlyContinue
         foreach ($r in $list) {
             foreach ($a in $r.assets) {
                 if ($a.name -eq $AssetName) { return [string]$a.browser_download_url }
