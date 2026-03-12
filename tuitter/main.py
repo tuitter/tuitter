@@ -3603,8 +3603,16 @@ class DiscoverFeed(VerticalScroll):
             item.remove_class("hovered")
 
     def key_enter(self) -> None:
-        """Open comment screen when pressing enter on a post"""
+        """Open comment screen when pressing enter on a post, or focus search when on search bar"""
         if self.app.command_mode:
+            return
+        # If cursor is on the search bar (position 0), focus the search input
+        if self.cursor_position == 0:
+            try:
+                search_input = self.query_one("#discover-search", Input)
+                search_input.focus()
+            except Exception:
+                pass
             return
         self.open_comment_screen()
 
@@ -3933,15 +3941,9 @@ class DiscoverFeed(VerticalScroll):
             event.stop()
             return
 
-        # Auto-focus search input when typing on its line
-        if self.cursor_position == 0 and len(event.key) == 1:
-            try:
-                search_input = self.query_one("#discover-search")
-                if not getattr(search_input, "has_focus", False):
-                    search_input.focus()
-            except Exception:
-                pass
-            return
+        # When cursor is on search bar (position 0), only i/Enter//
+        # should activate the input — handled by key_i, key_slash,
+        # and key_enter respectively. Do NOT auto-focus on arbitrary typing.
 
         if event.key == "g":
             now = time.time()
