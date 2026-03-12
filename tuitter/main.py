@@ -1760,8 +1760,6 @@ class NotificationItem(Static):
     def __init__(self, notification, **kwargs):
         super().__init__(**kwargs)
         self.notification = notification
-        if not notification.read:
-            self.add_class("unread")
 
     def render(self) -> str:
         t = format_time_ago(self.notification.timestamp)
@@ -4002,10 +4000,9 @@ class NotificationsFeed(VerticalScroll):
             filtered_notifications.append(notif)
             
         notifications = filtered_notifications
-        unread_count = len([n for n in notifications if not n.read])
         self.border_title = "Notifications"
         yield Static(
-            f"notifications.inbox | {len(notifications)} total | {unread_count} unread",
+            f"notifications.inbox | {len(notifications)} total",
             classes="panel-header",
         )
         for i, notif in enumerate(notifications):

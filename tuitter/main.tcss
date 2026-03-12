@@ -79,9 +79,7 @@ $danger-text: #FFAAAA;
 $danger-bg: #441818;
 $danger-bg-hover: #553030;
 
-/* Notification Colors */
-$notif-unread: #5A5C7A;
-$notif-unread-hover: $dracula-comment;
+
 
 /* Chat Message Colors */
 /* Chat Message Colors (Dracula-themed, tuned for aesthetics) */
@@ -1358,11 +1356,6 @@ Button.delete-profile-picture.file-btn-danger:hover {
     width: 100%;
 }
 
-.notification-item.unread {
-    background: $bg-dark;
-    border: solid $notif-unread;
-}
-
 .notification-item:hover {
     border: solid $border-hover;
 }
@@ -1372,17 +1365,6 @@ Button.delete-profile-picture.file-btn-danger:hover {
     color: $text-primary;
     border: solid $border-hover;
     text-style: bold;
-}
-
-.notification-item.unread.vim-cursor {
-    background: $bg-dark;
-    color: $text-primary;
-    border: solid $notif-unread-hover;
-    text-style: bold;
-}
-
-.notification-item.unread:hover {
-    border: solid $notif-unread-hover;
 }
 
 /* Conversations List */
