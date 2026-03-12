@@ -100,8 +100,9 @@ pipx install "git+https://github.com/tuitter/tuitter.git[video]"
 
 ## Key features
 
-- **Keyboard-first navigation**: Native Vim-style controls (`j`, `k`, `h`, `l`, `gg`, `G`, `ctrl+d/u`) for seamless movement.
-- **Command Mode**: Power users can use `:` (colon) to jump between screens (eg. `:1`, `:p`) or perform actions (eg. `:del` to delete, `:q` to quit).
+- **Instant Navigation**: Global hotkeys (`1`-`8`, `p`, `d`) to jump between screens instantly.
+- **Vim-style controls**: Native movement via `j`, `k`, `h`, `l`, `gg`, `G`, and `ctrl+d/u`.
+- **Command Mode**: Power users can use `:` (colon) to perform advanced actions (eg. `:del` to delete, `:q` to quit) or jump screens.
 - **Full-size Media Viewer**: Press `o` on any post with an image or video to open it in a full-resolution modal viewer.
 - **Complete Feature Set**: Timeline, Discover, Following, Notifications, Messages, and Settings screens.
 - **Advanced Drafting**: Robust in-memory drafts system with image preview and scaling.
@@ -114,13 +115,15 @@ Tuitter is designed to be used entirely from the keyboard.
 | Key             | Action                                      |
 | --------------- | ------------------------------------------- |
 | `1` - `6`       | Switch screens (Timeline, Discover, etc.)   |
+| `p`             | View your Profile                           |
+| `d`             | View Drafts                                 |
 | `j` / `k`       | Navigate down / up                          |
 | `h` / `l`       | Navigate left / right (in panels or posts)  |
 | `gg` / `G`      | Jump to top / bottom                        |
 | `ctrl+d` / `u`  | Scroll half-page down / up                  |
 | `o`             | Open media (full-size image/video viewer)   |
 | `n`             | Compose new post                            |
-| `:`             | Enter Command Mode (eg. `:q`, `:p`, `:1-6`) |
+| `:`             | Enter Command Mode (eg. `:q`, `:del`)       |
 | `q`             | Close modal or quit (from timeline)         |
 | `esc`           | Exit input/command mode or dismiss modals   |
 
