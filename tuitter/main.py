@@ -5988,9 +5988,13 @@ class ProfileView(VerticalScroll):
             yield bio_container
 
             if self.actions:
+                # Use current profile state to determine the appropriate initial label.
+                # "Unfollow" is shown when already following to indicate the toggle action.
+                is_following = self.profile.get("is_following", False)
+                follow_label = "Unfollow" if is_following else "Follow"
                 buttons_container = Container(classes="profile-action-buttons")
                 with buttons_container:
-                    follow_btn = Button("Follow", id="follow-user-btn", classes="profile-action-btn")
+                    follow_btn = Button(follow_label, id="follow-user-btn", classes="profile-action-btn")
                     yield follow_btn
                     yield Button("Message", id="message-user-btn", classes="profile-action-btn")
                 yield buttons_container
@@ -6059,6 +6063,8 @@ class ProfileView(VerticalScroll):
                 if currently_following:
                     ok = api.unfollow_user(target)
                     if ok:
+                        # Capture previous state to decide message intent
+                        previously_following = self.profile.get("is_following", True)
                         event.button.label = "Follow"
                         self.profile["is_following"] = False
                         try:
@@ -6070,7 +6076,8 @@ class ProfileView(VerticalScroll):
                         except Exception:
                             pass
                         try:
-                            self.app.notify(f"Unfollowed @{target}.", severity="success")
+                            msg = f"Unfollowed @{target}." if previously_following else f"You are not following @{target}."
+                            self.app.notify(msg, severity="success")
                         except Exception:
                             pass
                     else:
@@ -6081,6 +6088,8 @@ class ProfileView(VerticalScroll):
                 else:
                     ok = api.follow_user(target)
                     if ok:
+                        # Capture previous state to decide message intent
+                        previously_following = self.profile.get("is_following", False)
                         event.button.label = "Unfollow"
                         self.profile["is_following"] = True
                         try:
@@ -6092,7 +6101,8 @@ class ProfileView(VerticalScroll):
                         except Exception:
                             pass
                         try:
-                            self.app.notify(f"Now following @{target}!", severity="success")
+                            msg = f"Now following @{target}!" if not previously_following else f"You are already following @{target}."
+                            self.app.notify(msg, severity="success")
                         except Exception:
                             pass
                     else:
