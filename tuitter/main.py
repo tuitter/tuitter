@@ -3970,6 +3970,38 @@ class NotificationsFeed(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         notifications = api.get_notifications()
+        
+        # Deduplication logic (most recent first)
+        seen_follows = set()
+        seen_likes = set()        # (actor, related_post)
+        seen_reposts = set()      # (actor, related_post)
+        seen_comment_likes = set() # (actor, related_post)
+        
+        filtered_notifications = []
+        for notif in notifications:
+            if notif.type == "follow":
+                if notif.actor in seen_follows:
+                    continue
+                seen_follows.add(notif.actor)
+            elif notif.type == "like":
+                key = (notif.actor, notif.related_post)
+                if notif.related_post and key in seen_likes:
+                    continue
+                seen_likes.add(key)
+            elif notif.type == "repost":
+                key = (notif.actor, notif.related_post)
+                if notif.related_post and key in seen_reposts:
+                    continue
+                seen_reposts.add(key)
+            elif notif.type == "comment_like":
+                key = (notif.actor, notif.related_post)
+                if notif.related_post and key in seen_comment_likes:
+                    continue
+                seen_comment_likes.add(key)
+            
+            filtered_notifications.append(notif)
+            
+        notifications = filtered_notifications
         unread_count = len([n for n in notifications if not n.read])
         self.border_title = "Notifications"
         yield Static(
@@ -6533,19 +6565,20 @@ class ProfileView(VerticalScroll):
 class ProfilePanel(VerticalScroll):
     cursor_position = reactive(0)
 
+    def __init__(self, *children, username: str = "", **kwargs):
+        super().__init__(*children, **kwargs)
+        self.username = username
+
     def compose(self) -> ComposeResult:
         # Compose a read-only profile view for the current user
         self.border_title = "Profile"
-        # If the parent screen requested a specific username, render a
-        # minimal profile dict for that user and let ProfileView.fetch posts.
-        requested_username = None
-        try:
-            # Parent may be the ProfileScreen instance; prefer that attr
-            parent_screen = getattr(self, "parent", None)
-            if parent_screen is not None:
-                requested_username = getattr(parent_screen, "username", None)
-        except Exception:
-            requested_username = None
+        requested_username = self.username
+        if not requested_username:
+            try:
+                # Fallback: check parent screen (may be directly on ProfileScreen)
+                requested_username = getattr(self.parent, "username", None)
+            except Exception:
+                requested_username = None
 
         if requested_username:
             # Prefer authoritative backend lookup for the requested user.
@@ -6878,9 +6911,9 @@ class ProfileScreen(Container):
         self.username = username
 
     def compose(self) -> ComposeResult:
-        yield Sidebar(current="profile", id="sidebar")
+        yield Sidebar(current="profile" if not self.username else "discover", id="sidebar")
         with Container(id="screen-container"):
-            yield ProfilePanel(id="profile-panel")
+            yield ProfilePanel(username=self.username, id="profile-panel")
 
 class DraftsPanel(VerticalScroll):
     """Main panel for viewing all drafts."""
