@@ -767,6 +767,11 @@ TimelineScreen, DiscoverScreen, NotificationsScreen, MessagesScreen, SettingsScr
     height: 2fr;
 }
 
+#screen-container {
+    width: 1fr;
+    height: 100%;
+}
+
 /* Command Bar - Input for : commands */
 #command-input,
 #command-bar {

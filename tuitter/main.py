@@ -1052,72 +1052,6 @@ class CommentFeed(VerticalScroll):
         self._update_cursor()
 
 
-class CommentPanel(Container):
-    """Embed-friendly comment panel that can be mounted inside the main screen container.
-
-    This is a minimal wrapper that mounts a `CommentFeed` so the comment UI can live
-    inside the main layout (keeping TopNav and Sidebar visible).
-    """
-
-    def __init__(self, post, origin=None, **kwargs):
-        super().__init__(**kwargs)
-        self.post = post
-        self.origin = origin
-
-    def compose(self) -> ComposeResult:
-        yield CommentFeed(self.post, origin=self.origin, id="comment-feed")
-
-    def on_mount(self) -> None:
-        """Grab focus so key handlers (j/k/l/etc.) work immediately."""
-        self.call_after_refresh(self.focus)
-
-    def on_blur(self) -> None:
-        """When screen loses focus"""
-        pass
-
-    def on_scroll(self, event) -> None:
-        """Update scroll position reactive when scrolling"""
-        self.scroll_y = self.scroll_offset.y
-
-    # Helper to access the mounted CommentFeed instance
-    def _feed(self):
-        try:
-            return self.query_one("#comment-feed")
-        except Exception:
-            return None
-
-    # Proxy cursor_position to inner CommentFeed so navigation works
-    @property
-    def cursor_position(self):
-        f = self._feed()
-        try:
-            return getattr(f, "cursor_position")
-        except Exception:
-            return 0
-
-    @cursor_position.setter
-    def cursor_position(self, val):
-        f = self._feed()
-        try:
-            setattr(f, "cursor_position", val)
-        except Exception:
-            pass
-
-    def _get_navigable_items(self) -> list:
-        f = self._feed()
-        try:
-            return f._get_navigable_items()
-        except Exception:
-            return []
-
-    def _update_cursor(self) -> None:
-        f = self._feed()
-        try:
-            if hasattr(f, "_update_cursor"):
-                f._update_cursor()
-        except Exception:
-            pass
-
     def key_j(self) -> None:
         """Move down with j key"""
         if self.app.command_mode:
@@ -1172,22 +1106,6 @@ class CommentPanel(Container):
             return
         self.cursor_position = max(self.cursor_position - 3, 0)
 
-    def key_i(self) -> None:
-        """Focus comment input."""
-        if self.app.command_mode:
-            return
-        f = self._feed()
-        if f and hasattr(f, "key_i"):
-            try:
-                f.key_i()
-            except Exception:
-                pass
-
-    def key_q(self) -> None:
-        """Close the comment panel."""
-        if self.app.command_mode:
-            return
-        f = self._feed()
     def on_key(self, event) -> None:
         """Handle g+g key combination for top and escape from input"""
         # Don't process keys if app is in command mode
@@ -1195,28 +1113,23 @@ class CommentPanel(Container):
             event.prevent_default()
             return
 
-        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
-            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
-            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
-            event.stop()
-            return
-
-        if event.key == "escape":
-            # If comment input has focus, unfocus it and return focus to screen
-            try:
-                comment_input = self.query_one("#comment-input", Input)
-                if comment_input.has_focus:
+        # Special handling for input: if input has focus, don't intercept keys
+        try:
+            comment_input = self.query_one("#comment-input", Input)
+            if comment_input.has_focus:
+                if event.key == "escape":
                     comment_input.blur()
                     self.focus()
                     self.cursor_position = 0
                     event.prevent_default()
                     event.stop()
-                    return
-            except Exception:
-                pass
-            
-            # Prevent escape from unfocusing feed/panel
-            event.prevent_default()
+                return
+        except Exception:
+            pass
+
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
+            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
+            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
             event.stop()
             return
 
@@ -1229,34 +1142,101 @@ class CommentPanel(Container):
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
-            return  # End of g handling
+            return
 
-
-        # If 'd' pressed, navigate to drafts. Close embedded panel first if present.
+        # If 'd' pressed, navigate to drafts.
         if event.key == "d":
             try:
                 event.prevent_default()
-            except Exception:
-                pass
-            try:
                 event.stop()
-            except Exception:
-                pass
-            try:
-                # If this CommentFeed is embedded inside a panel, ask app to close it
+                # If this is inside a panel, ask app to close it first
                 try:
                     self.app.action_close_comment_panel()
                 except Exception:
                     pass
-                try:
-                    self.app.action_show_drafts()
-                except Exception:
-                    try:
-                        self.app.switch_screen("drafts")
-                    except Exception:
-                        pass
+                self.app.action_show_drafts()
             except Exception:
                 pass
+            return
+
+class CommentPanel(Container):
+    """Embed-friendly comment panel that can be mounted inside the main screen container."""
+
+    def __init__(self, post, origin=None, **kwargs):
+        super().__init__(**kwargs)
+        self.post = post
+        self.origin = origin
+
+    def compose(self) -> ComposeResult:
+        yield CommentFeed(self.post, origin=self.origin, id="comment-feed")
+
+    def on_mount(self) -> None:
+        """Grab focus so navigation works."""
+        self.call_after_refresh(lambda: self.query_one("#comment-feed").focus())
+
+    def _feed(self):
+        try:
+            return self.query_one("#comment-feed")
+        except Exception:
+            return None
+
+    @property
+    def cursor_position(self):
+        f = self._feed()
+        return getattr(f, "cursor_position", 0)
+
+    @cursor_position.setter
+    def cursor_position(self, val):
+        f = self._feed()
+        if f:
+            setattr(f, "cursor_position", val)
+
+    def key_i(self) -> None:
+        """Focus comment input."""
+        if self.app.command_mode:
+            return
+        f = self._feed()
+        if f: f.key_i()
+
+    def key_q(self) -> None:
+        """Close the comment panel."""
+        if self.app.command_mode:
+            return
+        try:
+            self.app.action_close_comment_panel()
+        except Exception:
+            try:
+                self.app.pop_screen()
+            except Exception:
+                pass
+
+    def key_j(self) -> None:
+        f = self._feed()
+        if f: f.key_j()
+
+    def key_k(self) -> None:
+        f = self._feed()
+        if f: f.key_k()
+
+    def key_G(self) -> None:
+        f = self._feed()
+        if f: f.key_G()
+
+    def key_ctrl_d(self) -> None:
+        f = self._feed()
+        if f: f.key_ctrl_d()
+
+    def key_ctrl_u(self) -> None:
+        f = self._feed()
+        if f: f.key_ctrl_u()
+
+    def key_w(self) -> None:
+        f = self._feed()
+        if f: f.key_w()
+
+    def key_b(self) -> None:
+        f = self._feed()
+        if f: f.key_b()
 
 
 class ImageViewerScreen(ModalScreen):
@@ -1345,6 +1325,10 @@ class CommentScreen(Screen):
         yield Static(
             "[i] Input [q] Back [j/k] Navigate", id="comment-footer", markup=False
         )
+
+    def on_mount(self) -> None:
+        """Focus the feed immediately so navigation works."""
+        self.call_after_refresh(lambda: self.query_one("#comment-feed").focus())
 
 
 # ───────── Items ─────────
@@ -3383,7 +3367,8 @@ class TimelineFeed(VerticalScroll):
 class TimelineScreen(Container):
     def compose(self) -> ComposeResult:
         yield Sidebar(current="timeline", id="sidebar")
-        yield TimelineFeed(id="timeline-feed")
+        with Container(id="screen-container"):
+            yield TimelineFeed(id="timeline-feed")
 
 
 class FollowingFeed(VerticalScroll):
@@ -3700,7 +3685,7 @@ class DiscoverFeed(VerticalScroll):
             # Set a new timer to filter after 300ms of no typing
             self._search_timer = self.set_timer(0.3, self._filter_posts)
 
-    def _filter_posts(self) -> None:
+    async def _filter_posts(self) -> None:
         """Filter posts based on search query from local cache"""
         try:
             # Filter from cached posts
@@ -3718,8 +3703,9 @@ class DiscoverFeed(VerticalScroll):
             self._displayed_count = min(self._batch_size, len(self._filtered_posts))
 
             # Remove existing post items
-            for item in self.query(".post-item"):
-                item.remove()
+            # CRITICAL: Await the removal to ensure the DOM is cleared 
+            # before we mount new items, preventing "ghost" cursor positions.
+            await self.query(".post-item").remove()
 
             # Add filtered posts (only first batch)
             for i, post in enumerate(self._filtered_posts[: self._displayed_count]):
@@ -3910,54 +3896,52 @@ class DiscoverFeed(VerticalScroll):
                 pass
 
     def on_key(self, event) -> None:
-        """Handle g+g key combination for top and escape from search"""
-        # Don't process keys if app is in command mode
+        """Handle navigation, focus, and typing for DiscoverFeed."""
         if self.app.command_mode:
             event.prevent_default()
             return
 
-        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o", "enter"):
-            # These are handled by key_* methods in this class or base class.
-            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
-            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+        # Navigation shortcuts
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "o"):
+            event.stop()
+            return
+
+        if event.key == "enter":
+            # If search input has focus, let it handle the submission
+            try:
+                search_input = self.query_one("#discover-search")
+                if getattr(search_input, "has_focus", False):
+                    return
+            except Exception:
+                pass
+            # Otherwise, use standard feed enter (open post)
             event.stop()
             return
 
         if event.key == "escape":
-            # If search input has focus, move cursor to first post and return focus to feed
             try:
-                search_input = self.query_one("#discover-search", Input)
-                if search_input.has_focus:
-                    # Move cursor to first post (position 1)
+                search_input = self.query_one("#discover-search")
+                if getattr(search_input, "has_focus", False):
                     self.cursor_position = 1
-                    # Remove focus from input and give it back to feed
                     self.focus()
                     event.prevent_default()
                     event.stop()
                     return
             except Exception:
                 pass
-            
-            # Prevent escape from unfocusing feed if not coming from input
             event.prevent_default()
             event.stop()
             return
 
-        # If cursor is on search input (position 0) and user types a letter/number/space
-        # Focus the search input to start typing
-        if self.cursor_position == 0:
-            # Check if it's a typeable character (letter, number, space, punctuation except vim keys)
-            if len(event.key) == 1 and event.key not in [
-                "j", "k", "g", "G", "w", "b", "h", "l",
-                "0", "1", "2", "3", "4", "5", "6", "p", "d", "i", "q", ":", "/"
-            ]:
-                try:
-                    search_input = self.query_one("#discover-search", Input)
+        # Auto-focus search input when typing on its line
+        if self.cursor_position == 0 and len(event.key) == 1:
+            try:
+                search_input = self.query_one("#discover-search")
+                if not getattr(search_input, "has_focus", False):
                     search_input.focus()
-                    # Let the event propagate to the input
-                    return
-                except Exception:
-                    pass
+            except Exception:
+                pass
+            return
 
         if event.key == "g":
             now = time.time()
@@ -3968,12 +3952,14 @@ class DiscoverFeed(VerticalScroll):
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
+            return
 
 
 class DiscoverScreen(Container):
     def compose(self) -> ComposeResult:
         yield Sidebar(current="discover", id="sidebar")
-        yield DiscoverFeed(id="discover-feed")
+        with Container(id="screen-container"):
+            yield DiscoverFeed(id="discover-feed")
 
 
 class NotificationsFeed(VerticalScroll):
@@ -4122,7 +4108,8 @@ class NotificationsFeed(VerticalScroll):
 class NotificationsScreen(Container):
     def compose(self) -> ComposeResult:
         yield Sidebar(current="notifications", id="sidebar")
-        yield NotificationsFeed(id="notifications-feed")
+        with Container(id="screen-container"):
+            yield NotificationsFeed(id="notifications-feed")
 
 
 class ConversationsList(VerticalScroll):
@@ -4732,40 +4719,42 @@ class ChatView(VerticalScroll):
             self.cursor_position = 0
 
     def on_key(self, event) -> None:
-        """Handle Escape from the input so we remain in vim-navigation state."""
+        """Handle navigation, focus, and escape for ChatView."""
         if self.app.command_mode:
             event.prevent_default()
             return
 
-        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter"):
-            # Stop bubbling to prevent TuitterApp or other parents from double-handling.
-            # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
+        # Navigation shortcuts
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u"):
+            event.stop()
+            return
+
+        if event.key == "enter":
+            # If message input has focus, let it handle the key
+            try:
+                inp = self.query_one("#message-input")
+                if getattr(inp, "has_focus", False):
+                    return
+            except Exception:
+                pass
+            # Otherwise, use standard chat enter (start input)
             event.stop()
             return
 
         if event.key == "escape":
             try:
-                inp = self.query_one("#message-input", Input)
-                # If input has focus, blur it and set vim cursor to the input
+                inp = self.query_one("#message-input")
                 if getattr(inp, "has_focus", False):
-                    try:
-                        inp.blur()
-                    except Exception:
-                        pass
-                    # Mark input as not in active insert mode
+                    inp.blur()
                     self.input_active = False
-                    # Move cursor to input index so it's visually selected and navigatable
                     msgs = list(self.query(".chat-message"))
                     self.cursor_position = len(msgs)
-                    # Keep focus on ChatView so vim keys work
                     self.focus()
-                    # Stop propagation so parent handlers don't also act
                     event.prevent_default()
                     event.stop()
                     return
             except Exception:
                 pass
-            
             # Prevent escape from unfocusing view
             event.prevent_default()
             event.stop()
@@ -4780,6 +4769,7 @@ class ChatView(VerticalScroll):
                 delattr(self, "last_g_time")
             else:
                 self.last_g_time = now
+            return
 
 
 class MessagesScreen(Container):
@@ -5857,7 +5847,8 @@ class SettingsPanel(VerticalScroll):
 class SettingsScreen(Container):
     def compose(self) -> ComposeResult:
         yield Sidebar(current="settings", id="sidebar")
-        yield SettingsPanel(id="settings-panel")
+        with Container(id="screen-container"):
+            yield SettingsPanel(id="settings-panel")
 
     def on_mount(self) -> None:
         """When the SettingsScreen is mounted, ensure the settings panel is focused
@@ -6885,7 +6876,8 @@ class ProfileScreen(Container):
 
     def compose(self) -> ComposeResult:
         yield Sidebar(current="profile", id="sidebar")
-        yield ProfilePanel(id="profile-panel")
+        with Container(id="screen-container"):
+            yield ProfilePanel(id="profile-panel")
 
 class DraftsPanel(VerticalScroll):
     """Main panel for viewing all drafts."""
@@ -7212,7 +7204,8 @@ class DraftsScreen(Container):
 
     def compose(self) -> ComposeResult:
         yield Sidebar(current="drafts", id="sidebar")
-        yield DraftsPanel(id="drafts-panel")
+        with Container(id="screen-container"):
+            yield DraftsPanel(id="drafts-panel")
 
 
 class TuitterApp(App):
@@ -8093,8 +8086,9 @@ class TuitterApp(App):
             command_bar.styles.display = "block"
             self.command_text = ":"
             self.command_mode = True
-        except Exception as e:
-            logging.error(f"Failed to show command bar: {e}")
+        except Exception:
+            # Silent fallback if screen doesn't have a command bar
+            pass
 
     def on_input_changed(self, event: Input.Changed) -> None:
         # Don't interfere with command input typing
