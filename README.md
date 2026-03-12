@@ -1,140 +1,91 @@
 # Tuitter
 
-Terminal social client.
+**The terminal-native social experience.**
 
-Tuitter is a keyboard-first, terminal-native social client built for people who prefer speed, privacy, and staying in the flow of their terminal workflows.
+Tuitter is a high-performance, keyboard-first social client designed for developers and terminal enthusiasts. Built with a focus on speed, privacy, and aesthetic minimalism, it brings your social world directly into your dev environment.
 
-## Installation
+![Tuitter Timeline](screenshots/timeline.png)
 
-Requires **Python 3.10+**. The recommended way is `pipx`, which installs tuitter in its own isolated virtual environment and puts the `tuitter` command on your PATH.
+---
 
-### macOS / Linux / WSL — one-liner
+## Features
 
+### Performance and UX
+- **Instant Navigation**: Switch between Timeline, Discover, and Messages with zero lag using global hotkeys 1-6.
+- **Vim Power**: Navigate natively with j, k, h, l, gg, and G.
+- **Seamless Flow**: Stay in your terminal. No context switching to heavy browser tabs.
+
+### Rich Rendering
+- **Media Viewer**: Open any post's media in a full-resolution ASCII/Braille modal with 'o'.
+- **ASCII Avatars**: Generate and customize expressive profile pictures using the built-in generator.
+- **Braille Art**: High-fidelity image-to-braille conversion for an aesthetic terminal experience.
+
+### Privacy First
+- **Local Storage**: Your tokens and settings are stored securely on your machine (keyring/DPAPI).
+- **Direct Backend**: Communicates directly with our optimized FastAPI backend.
+
+---
+
+## Screenshots
+
+| Timeline | Settings |
+| :---: | :---: |
+| ![Timeline](screenshots/timeline.png) | ![Settings](screenshots/settings.png) |
+
+| Media Viewer | Chat View |
+| :---: | :---: |
+| ![Viewer](screenshots/viewer.png) | ![Chat](screenshots/chat.png) |
+
+---
+
+## Quick Start
+
+### Recommended Installation (pipx)
+The easiest way to install Tuitter is via [pipx](https://github.com/pypa/pipx), which handles virtual environment isolation and puts the command on your PATH.
+
+```bash
+pipx install tuitter
+```
+
+### One-Liner Installation scripts
+If you don't have pipx or prefer an automated script:
+
+**macOS / Linux / WSL:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tuitter/tuitter/main/install.sh | bash
 ```
 
-Or manually with pipx:
-
-```bash
-pipx install "git+https://github.com/tuitter/tuitter.git"
-```
-
-### Windows — PowerShell one-liner
-
+**Windows (PowerShell):**
 ```powershell
 irm https://raw.githubusercontent.com/tuitter/tuitter/main/install.ps1 | iex
 ```
 
-> If you get a security error run this first:
-> `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
-
-Or manually with pipx:
-
-```powershell
+### Advanced: Install from Source
+```bash
 pipx install "git+https://github.com/tuitter/tuitter.git"
 ```
 
-### Don't have pipx?
+---
 
-Install it first:
+## Global Shortcuts
 
-```bash
-# macOS / Linux
-python3 -m pip install --user pipx && python3 -m pipx ensurepath
-# restart your terminal, then run the install command above
-```
+| Key | Action |
+| :--- | :--- |
+| 1 - 6 | Switch Screens |
+| p | View Profile |
+| d | View Drafts |
+| j / k | Navigate Down / Up |
+| o | Open Full-Size Media |
+| n | New Post |
+| : | Command Mode (e.g., :q, :del) |
+| esc | Close Modal / Cancel |
 
-```powershell
-# Windows
-python -m pip install --user pipx; python -m pipx ensurepath
-# restart your terminal, then run the install command above
-```
+---
 
-### Alternative: plain pip into a venv
+## Community and Support
 
-```bash
-python3 -m venv tuitter-env
-source tuitter-env/bin/activate        # Windows: tuitter-env\Scripts\activate
-pip install "git+https://github.com/tuitter/tuitter.git"
-tuitter
-```
+- **Bugs and Features**: [GitHub Issues](https://github.com/tuitter/tuitter/issues)
+- **Built With**: [Textual](https://textual.textualize.io/) and [FastAPI](https://fastapi.tiangolo.com/)
 
-### Installing Python (if needed)
-
-| Platform      | Command                                                                                |
-| ------------- | -------------------------------------------------------------------------------------- |
-| macOS         | `brew install python@3.12`                                                             |
-| Ubuntu/Debian | `sudo apt install python3.12 python3.12-venv python3-pip`                              |
-| Arch          | `sudo pacman -S python`                                                                |
-| Fedora        | `sudo dnf install python3.12`                                                          |
-| Windows       | `winget install Python.Python.3.12` or [python.org](https://www.python.org/downloads/) |
-
-## Troubleshooting
-
-- If file dialogs fail, install your OS's `tkinter` package (eg. `sudo apt install python3-tk` on Debian/Ubuntu).
-
-## Why people love Tuitter
-
-- Speed & focus — keyboard-first controls and lightweight rendering make it fast to scan timelines and compose replies.
-- Minimal context switching — keep your hands on the keyboard and stay inside your terminal workflows.
-- Privacy-forward — tokens are kept locally and the client communicates with the official hosted backend operated by the Tuitter team.
-- Fun & expressive — convert images to high-quality braille/ASCII art and create playful profile pictures with the built-in generator.
-
-## Who should try it
-
-- Terminal-first professionals and power users
-- People who prefer small, focused tools over bloated GUIs
-- Communities that value privacy
-
-## Key features
-
-- **Instant Navigation**: Global hotkeys (`1`-`8`, `p`, `d`) to jump between screens instantly.
-- **Vim-style controls**: Native movement via `j`, `k`, `h`, `l`, `gg`, `G`, and `ctrl+d/u`.
-- **Command Mode**: Power users can use `:` (colon) to perform advanced actions (eg. `:del` to delete, `:q` to quit) or jump screens.
-- **Full-size Media Viewer**: Press `o` on any post with an image to open it in a full-resolution modal viewer.
-- **Complete Feature Set**: Timeline, Discover, Following, Notifications, Messages, and Settings screens.
-- **Advanced Drafting**: Robust in-memory drafts system with image preview and scaling.
-- **Expressive ASCII**: Built-in ASCII avatar generator and high-quality image → braille art conversion (video support coming soon).
-
-## Keyboard controls
-
-Tuitter is designed to be used entirely from the keyboard.
-
-| Key             | Action                                      |
-| --------------- | ------------------------------------------- |
-| `1` - `6`       | Switch screens (Timeline, Discover, etc.)   |
-| `p`             | View your Profile                           |
-| `d`             | View Drafts                                 |
-| `j` / `k`       | Navigate down / up                          |
-| `h` / `l`       | Navigate left / right (in panels or posts)  |
-| `gg` / `G`      | Jump to top / bottom                        |
-| `ctrl+d` / `u`  | Scroll half-page down / up                  |
-| `o`             | Open media (full-size image viewer)         |
-| `n`             | Compose new post                            |
-| `:`             | Enter Command Mode (eg. `:q`, `:del`)       |
-| `q`             | Close modal or quit (from timeline)         |
-| `esc`           | Exit input/command mode or dismiss modals   |
-
-## Authentication & reference backend
-
-Tuitter communicates with an HTTP backend using OIDC ID tokens (the reference deployment uses AWS Cognito). The packaged client works with the official hosted backend operated by the Tuitter team. Tokens are stored locally using `keyring` when available or a DPAPI-encrypted fallback on Windows.
-
-Reference backend architecture (brief): the example backend is a FastAPI application packaged to run on AWS Lambda (an adapter like Mangum is used), exposed through API Gateway, and backed by an RDS PostgreSQL database for persistent data.
-
-## Privacy & security
-
--- Tokens remain on your device and are not sent to third-party services.
--- The hosted backend and data retention policies are managed by the Tuitter team; if you have questions about data handling, contact us via issues.
-
-## Troubleshooting (common user issues)
-
-- "No module named tkinter": install the OS package that provides tkinter (Debian/Ubuntu: `sudo apt install python3-tk`).
-- "No ffmpeg" when converting video: install ffmpeg and ensure it's on PATH.
-  -- 401 Unauthorized after login: usually a backend configuration mismatch — please file an issue so the Tuitter team can investigate; end users do not host backends themselves.
-
-## Getting help & community
-
-- File issues or feature requests: https://github.com/tuitter/tuitter/issues
-- When asking for help, include your platform (OS and Python version).
-  -- Want to contribute? Open an issue or PR and we can help you get started.
+---
+*Made for the terminal.*
