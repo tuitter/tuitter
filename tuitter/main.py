@@ -868,7 +868,7 @@ class CommentFeed(VerticalScroll):
     def on_mount(self) -> None:
         self.watch(self, "cursor_position", self._update_cursor)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle comment submission"""
         if event.input.id != "comment-input":
             return
@@ -882,8 +882,8 @@ class CommentFeed(VerticalScroll):
         event.input.value = ""
         event.input.blur()
 
-        # Refresh comments
-        self._refresh_comments()
+        # Refresh comments (await to ensure DOM is ready)
+        await self._refresh_comments()
 
         # Notify app/widgets that a comment was added so post counters update
         try:
@@ -921,12 +921,12 @@ class CommentFeed(VerticalScroll):
         if hasattr(self.app, "notify"):
             self.app.notify("Comment posted!", timeout=2)
 
-    def _refresh_comments(self) -> None:
+    async def _refresh_comments(self) -> None:
         """Refresh the comment list"""
         try:
-            # Remove existing comment items
-            for item in self.query(".comment-item"):
-                item.remove()
+            # Remove existing comment items — MUST await so the DOM is
+            # fully cleared before we mount fresh widgets.
+            await self.query(".comment-item").remove()
 
             # Fetch updated comments
             self.comments = api.get_comments(self.post.id)
@@ -3583,7 +3583,8 @@ class FollowingFeed(VerticalScroll):
 class FollowingScreen(Container):
     def compose(self) -> ComposeResult:
         yield Sidebar(current="following", id="sidebar")
-        yield FollowingFeed(id="following-feed")
+        with Container(id="screen-container"):
+            yield FollowingFeed(id="following-feed")
 
 
 class DiscoverFeed(VerticalScroll):
