@@ -1411,12 +1411,14 @@ class ProfileDisplay(Static):
 
 class ConversationItem(Static):
     def __init__(self, conversation, **kwargs):
-        super().__init__(**kwargs)
+        # Enable markup for the 'unread' label styling
+        super().__init__(markup=True, **kwargs)
         self.conversation = conversation
 
     def render(self) -> str:
         time_ago = format_time_ago(self.conversation.last_message_at)
-        unread_text = "🔵 unread" if self.conversation.unread else ""
+        # Use Dracula Orange (#FFB86C) for the unread label
+        unread_text = "[#FFB86C]unread[/]" if self.conversation.unread else ""
         # Get the other participant's username (first one that's not the current user)
         current_user = get_username() or "yourname"
         other_participants = [
