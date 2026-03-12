@@ -3,7 +3,7 @@
 # Downloads a prebuilt binary - no Python, git, or pip required.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/tuitter/tuitter/dev/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/tuitter/tuitter/main/install.sh | sh
 
 set -e
 

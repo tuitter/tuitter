@@ -2,7 +2,7 @@
 # Downloads a prebuilt .exe - no Python, git, or pip required.
 #
 # Usage (run in PowerShell as normal user):
-#   irm https://raw.githubusercontent.com/tuitter/tuitter/dev/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/tuitter/tuitter/main/install.ps1 | iex
 #
 # If you get a security error, run first:
 #   Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
