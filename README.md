@@ -100,10 +100,12 @@ pipx install "git+https://github.com/tuitter/tuitter.git[video]"
 
 ## Key features
 
-- Keyboard-first navigation (1–5 screens, vim controls)
-- Timeline, Discover, Messages, Notifications, and Settings screens
-- Direct messages and threaded conversations
-- ASCII avatar generator and image/video → ASCII conversion
+- **Keyboard-first navigation**: Native Vim-style controls (`j`, `k`, `h`, `l`, `gg`, `G`, `ctrl+d/u`) for seamless movement.
+- **Command Mode**: Power users can use `:` (colon) to jump between screens (eg. `:1`, `:p`) or perform actions (eg. `:del` to delete, `:q` to quit).
+- **Full-size Media Viewer**: Press `o` on any post with an image or video to open it in a full-resolution modal viewer.
+- **Complete Feature Set**: Timeline, Discover, Following, Notifications, Messages, and Settings screens.
+- **Advanced Drafting**: Robust in-memory drafts system with image preview and scaling.
+- **Expressive ASCII**: Built-in ASCII avatar generator and high-quality image/video → braille art conversion.
 
 ## Authentication & reference backend
 
