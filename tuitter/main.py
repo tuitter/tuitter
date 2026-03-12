@@ -5963,6 +5963,9 @@ class ProfileView(VerticalScroll):
         with avatar_container:
             yield AvatarWidget(self.profile.get("pic_url", ""), self.profile.get("ascii_pic", ""), id="profile-picture-display", classes="ascii-avatar")
         yield avatar_container
+        # Display the '[o] open' hint below the avatar container
+        if self.profile.get("pic_url") or self.profile.get("ascii_pic"):
+            yield Static("[o] open", classes="image-open-hint", markup=False)
 
         # Then render the profile details in a centered container (username, stats, bio, actions)
         profile_container = Container(classes="profile-center-container")
@@ -6341,7 +6344,7 @@ class ProfileView(VerticalScroll):
             event.prevent_default()
             return
 
-        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter", "g"):
+        if event.key in ("j", "k", "h", "l", "w", "b", "G", "ctrl+d", "ctrl+u", "enter", "g", "o"):
             # These are handled by key_* methods or specialized logic in this class.
             # Stop bubbling to prevent TuitterApp or other parents from double-handling.
             # CRITICAL: DO NOT call prevent_default() here as it blocks the key_* action dispatching.
@@ -6350,6 +6353,9 @@ class ProfileView(VerticalScroll):
             # Manually call the key handler if it's a 'g' (since key_g handles its own timing)
             if event.key == "g":
                 self.key_g()
+            # Manually call key_o if focused on something with an image
+            elif event.key == "o":
+                self.key_o()
             return
 
         if event.key == "escape":
@@ -6424,6 +6430,52 @@ class ProfileView(VerticalScroll):
         if self.cursor_col < len(cols) - 1:
             self.cursor_col += 1
             self._update_cursor()
+
+    def key_o(self) -> None:
+        """Open full-size image viewer if focused on the profile picture or a post with an image."""
+        if self.app.command_mode:
+            return
+        
+        try:
+            rows = self._rows()
+            if 0 <= self.cursor_row < len(rows):
+                cols = rows[self.cursor_row]
+                if not cols:
+                    return
+                # Determine active focused widget
+                target = cols[0] if len(cols) == 1 else (cols[self.cursor_col] if (self.cursor_col is not None and self.cursor_col >= 0) else cols[0])
+                
+                # Case 1: Focused on profile picture (AvatarWidget or its container)
+                is_avatar = False
+                ident = getattr(target, "id", None)
+                classes = getattr(target, "classes", []) or []
+                if ident == "profile-picture-display" or "ascii-avatar" in classes or "profile-avatar-container" in classes:
+                    is_avatar = True
+                
+                if is_avatar:
+                    pic_url = self.profile.get("pic_url")
+                    ascii_pic = self.profile.get("ascii_pic")
+                    if pic_url:
+                        self.app.push_screen(ImageViewerScreen(attachment={"type": "image_url", "url": pic_url}))
+                        return
+                    elif ascii_pic:
+                        self.app.push_screen(ImageViewerScreen(attachment={"type": "ascii_photo", "content": ascii_pic}))
+                        return
+
+                # Case 2: Focused on a PostItem with ASCII art
+                try:
+                    from .main import PostItem
+                except Exception:
+                    PostItem = globals().get("PostItem")
+                
+                if PostItem and isinstance(target, PostItem) and getattr(target, "has_ascii_art", False):
+                    attachments = getattr(target.post, "attachments", [])
+                    for attachment in attachments:
+                        if attachment.get("type") in ("ascii_photo", "image_url"):
+                            self.app.push_screen(ImageViewerScreen(attachment=attachment))
+                            return
+        except Exception:
+            pass
 
     def key_g(self) -> None:
         if self.app.command_mode:
