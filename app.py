@@ -15,6 +15,7 @@ from aws_cdk import (
     aws_secretsmanager as secretsmanager,
 )
 from constructs import Construct
+import os
 
 
 ACCOUNT_ID = "390402531466"
@@ -26,7 +27,8 @@ EXISTING_APP_CLIENT_ID = "7109b3p9beveapsmr806freqnn"
 
 # Existing ECR repo
 ECR_REPO_NAME = "tuitter-endpoint-container"
-ECR_TAG = "latest"
+PROD_ECR_TAG = "prod-latest"
+DEV_ECR_TAG = "dev-latest"
 
 
 class TuitterNatFreeStack(Stack):
@@ -41,8 +43,11 @@ class TuitterNatFreeStack(Stack):
     - References existing Cognito pool/client (no user migration)
     """
 
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, *, is_dev: bool = False, ecr_tag: str | None = None, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        if ecr_tag is None:
+            ecr_tag = DEV_ECR_TAG if is_dev else PROD_ECR_TAG
 
         # --------------------------
         # Aggressive mode: do NOT create a custom VPC or VPC endpoints.
@@ -58,7 +63,7 @@ class TuitterNatFreeStack(Stack):
         db = rds.DatabaseInstance(
             self,
             "TuitterDb",
-            instance_identifier="tuitter-postgres",
+            instance_identifier=("tuitter-postgres-dev" if is_dev else "tuitter-postgres"),
             engine=rds.DatabaseInstanceEngine.postgres(
                 version=rds.PostgresEngineVersion.VER_17_4
             ),
@@ -69,15 +74,15 @@ class TuitterNatFreeStack(Stack):
             # Place in public subnets so the instance has a public endpoint
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
             publicly_accessible=True,
-            allocated_storage=20,
+            allocated_storage=(10 if is_dev else 20),
             max_allocated_storage=200,
             storage_encrypted=False,
-            backup_retention=Duration.days(7),
-            deletion_protection=True,
+            backup_retention=Duration.days(7) if not is_dev else Duration.days(1),
+            deletion_protection=(not is_dev),
             credentials=rds.Credentials.from_password(
                 "postgres", cdk.SecretValue.plain_text("postgres")
             ),
-            removal_policy=RemovalPolicy.RETAIN,
+            removal_policy=(RemovalPolicy.DESTROY if is_dev else RemovalPolicy.RETAIN),
             delete_automated_backups=False,
         )
 
@@ -109,10 +114,10 @@ class TuitterNatFreeStack(Stack):
         fn = _lambda.DockerImageFunction(
             self,
             "TuitterApiLambda",
-            function_name="tuitter-api",
+            function_name=("tuitter-api-dev" if is_dev else "tuitter-api"),
             code=_lambda.DockerImageCode.from_ecr(
                 repository=repo,
-                tag=ECR_TAG,
+                tag=ecr_tag,
             ),
             timeout=Duration.seconds(60),
             memory_size=1024,
@@ -158,7 +163,7 @@ class TuitterNatFreeStack(Stack):
         http_api = apigwv2.HttpApi(
             self,
             "TuitterHttpApi",
-            api_name="tuitter-http-api",
+            api_name=("tuitter-http-api-dev" if is_dev else "tuitter-http-api"),
         )
 
         integration = apigwv2_integrations.HttpLambdaIntegration(
@@ -190,9 +195,25 @@ class TuitterNatFreeStack(Stack):
 
 
 app = cdk.App()
-TuitterNatFreeStack(
-    app,
-    "TuitterNatFreeStack",
-    env=cdk.Environment(account=ACCOUNT_ID, region=REGION),
-)
+
+# stage selection: prefer CDK context 'stage', fallback to env var 'CDK_STAGE'
+stage = app.node.try_get_context("stage") or os.environ.get("CDK_STAGE", "prod")
+
+if stage == "dev":
+    TuitterNatFreeStack(
+        app,
+        "TuitterNatFreeStack-Dev",
+        env=cdk.Environment(account=ACCOUNT_ID, region=REGION),
+        is_dev=True,
+        ecr_tag=app.node.try_get_context("image-tag") or os.environ.get("CDK_IMAGE_TAG") or DEV_ECR_TAG,
+    )
+else:
+    TuitterNatFreeStack(
+        app,
+        "TuitterNatFreeStack",
+        env=cdk.Environment(account=ACCOUNT_ID, region=REGION),
+        is_dev=False,
+        ecr_tag=app.node.try_get_context("image-tag") or os.environ.get("CDK_IMAGE_TAG") or PROD_ECR_TAG,
+    )
+
 app.synth()
