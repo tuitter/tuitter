@@ -126,6 +126,18 @@ class TuitterNatFreeStack(Stack):
             # endpoint without requiring NAT or VPC endpoints.
             environment={
                 # DB connection — DATABASE_URL constructed in backend from parts
+                "DATABASE_URL": cdk.Fn.join(
+                    "",
+                    [
+                        "postgresql://postgres:",
+                        db_secret.secret_value.to_string(),
+                        "@",
+                        db.db_instance_endpoint_address,
+                        ":",
+                        str(db.db_instance_endpoint_port),
+                        "/postgres",
+                    ],
+                ),
                 "DB_HOST": db.db_instance_endpoint_address,
                 "DB_PORT": str(db.db_instance_endpoint_port),
                 "DB_NAME": "postgres",
