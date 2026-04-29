@@ -49,6 +49,10 @@ class TuitterNatFreeStack(Stack):
         if ecr_tag is None:
             ecr_tag = DEV_ECR_TAG if is_dev else PROD_ECR_TAG
 
+        # Migration mode controls whether the Lambda performs a one-time Alembic
+        # stamp/upgrade on startup. Default is "none" so app startups do not mutate schema.
+        migration_mode = self.node.try_get_context("migration-mode") or os.environ.get("CDK_MIGRATION_MODE") or "none"
+
         # --------------------------
         # Aggressive mode: do NOT create a custom VPC or VPC endpoints.
         # Use the account's default VPC for RDS so we avoid creating
@@ -152,6 +156,7 @@ class TuitterNatFreeStack(Stack):
                 "R2_SECRET_ACCESS_KEY": r2_secret.secret_value_from_json("secret_access_key").to_string(),
                 "R2_BUCKET_NAME": "tuitter-images",
                 "R2_PUBLIC_URL": "https://pub-77dc0778b6d6493c95fb6f6bb1cf56e2.r2.dev",
+                "RUN_MIGRATIONS_MODE": migration_mode,
             },
         )
 
