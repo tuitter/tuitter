@@ -216,14 +216,29 @@ class RealAPI(APIInterface):
         Returns (is_outdated: bool, min_version: str). On network error
         returns (False, "") so the app can still start.
         """
+        # 1) Determine local client version
+        client_version = None
         try:
-            from . import __version__ as client_version
+            from . import __version__
+            client_version = __version__
+        except Exception:
+            pass
+        if not client_version:
+            try:
+                import tuitter
+                client_version = getattr(tuitter, "__version__", None)
+            except Exception:
+                pass
+        if not client_version:
+            return (False, "")
+
+        # 2) Ask the server for its minimum requirement
+        try:
             resp = self.session.get(f"{self.base_url}/version", timeout=5)
             if resp.ok:
                 data = resp.json()
                 min_ver = data.get("min_client_version", "")
-                if min_ver and client_version:
-                    # Compare as tuples of ints: (1, 1, 2) < (1, 2, 0)
+                if min_ver:
                     def parse_ver(v: str):
                         return tuple(int(x) for x in v.split("."))
                     try:
