@@ -7737,28 +7737,6 @@ class TuitterApp(App):
             except Exception:
                 self.drafts_store = []
 
-        # Check if the client is outdated compared to what the server requires
-        try:
-            is_outdated, min_ver = api.check_client_version()
-            if is_outdated:
-                from . import __version__ as _cv
-                # Detect install method to show the correct upgrade command
-                if getattr(sys, "frozen", False):
-                    upgrade_hint = "Download the latest release from the project page"
-                elif "pipx" in (sys.executable or ""):
-                    upgrade_hint = "pipx upgrade tuitter"
-                else:
-                    upgrade_hint = "pip install --upgrade tuitter"
-                self.notify(
-                    f"Your tuitter client (v{_cv}) is outdated. "
-                    f"Please upgrade to v{min_ver}+\n{upgrade_hint}",
-                    title="Update Available",
-                    severity="warning",
-                    timeout=15,
-                )
-        except Exception:
-            pass
-
         try:
             # First, attempt a proactive restore using the API helper which
             # will attempt refresh if a refresh token is present. This avoids
@@ -9638,8 +9616,44 @@ class TuitterApp(App):
             return
 
 
+
+def _check_version_or_exit():
+    """Check if this client meets the server's minimum version requirement.
+
+    If outdated, prints a clear message to stderr and exits before the TUI
+    starts. If the server is unreachable, the check is silently skipped so
+    the app can still work offline or against a local dev server.
+    """
+    try:
+        is_outdated, min_ver = api.check_client_version()
+        if is_outdated:
+            from . import __version__ as _cv
+            import sys as _sys
+
+            # Detect install method for the upgrade hint
+            if getattr(_sys, "frozen", False):
+                upgrade_hint = "Download the latest release from the project page."
+            elif "pipx" in (_sys.executable or ""):
+                upgrade_hint = "Run:  pipx upgrade tuitter"
+            else:
+                upgrade_hint = "Run:  pip install --upgrade tuitter"
+
+            print(
+                f"\n  tuitter client v{_cv} is no longer supported by the server.\n"
+                f"  Minimum required version: v{min_ver}\n\n"
+                f"  {upgrade_hint}\n",
+                file=_sys.stderr,
+            )
+            _sys.exit(1)
+    except SystemExit:
+        raise  # re-raise sys.exit
+    except Exception:
+        pass  # server unreachable — let the app start
+
+
 def main():
     logging.debug("inside __main__ guard, about to run app")
+    _check_version_or_exit()
     try:
         TuitterApp().run()
     except Exception as e:
@@ -9652,6 +9666,8 @@ if __name__ == "__main__":
     # Prevent urllib3 warnings from breaking the TUI
     logging.getLogger("urllib3").setLevel(logging.ERROR)
     
+    _check_version_or_exit()
+
     pid_file = Path.home() / ".tuitter_pid"
     pid_file.write_text(str(os.getpid()))
     try:
