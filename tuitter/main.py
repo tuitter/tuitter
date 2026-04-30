@@ -7736,6 +7736,29 @@ class TuitterApp(App):
                 self.drafts_store = load_drafts()
             except Exception:
                 self.drafts_store = []
+
+        # Check if the client is outdated compared to what the server requires
+        try:
+            is_outdated, min_ver = api.check_client_version()
+            if is_outdated:
+                from . import __version__ as _cv
+                # Detect install method to show the correct upgrade command
+                if getattr(sys, "frozen", False):
+                    upgrade_hint = "Download the latest release from the project page"
+                elif "pipx" in (sys.executable or ""):
+                    upgrade_hint = "pipx upgrade tuitter"
+                else:
+                    upgrade_hint = "pip install --upgrade tuitter"
+                self.notify(
+                    f"Your tuitter client (v{_cv}) is outdated. "
+                    f"Please upgrade to v{min_ver}+\n{upgrade_hint}",
+                    title="Update Available",
+                    severity="warning",
+                    timeout=15,
+                )
+        except Exception:
+            pass
+
         try:
             # First, attempt a proactive restore using the API helper which
             # will attempt refresh if a refresh token is present. This avoids

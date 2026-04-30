@@ -79,3 +79,6 @@ push = true
     'current_version = "{version}"',
     'version = "{pep440_version}"',
 ]
+"tuitter/__init__.py" = [
+    '__version__ = "{pep440_version}"',
+]

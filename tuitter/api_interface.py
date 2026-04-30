@@ -209,6 +209,32 @@ class RealAPI(APIInterface):
             except Exception:
                 pass
 
+    # --- version check ---
+    def check_client_version(self) -> tuple[bool, str]:
+        """Check if this client version meets the server's minimum requirement.
+
+        Returns (is_outdated: bool, min_version: str). On network error
+        returns (False, "") so the app can still start.
+        """
+        try:
+            from . import __version__ as client_version
+            resp = self.session.get(f"{self.base_url}/version", timeout=5)
+            if resp.ok:
+                data = resp.json()
+                min_ver = data.get("min_client_version", "")
+                if min_ver and client_version:
+                    # Compare as tuples of ints: (1, 1, 2) < (1, 2, 0)
+                    def parse_ver(v: str):
+                        return tuple(int(x) for x in v.split("."))
+                    try:
+                        if parse_ver(client_version) < parse_ver(min_ver):
+                            return (True, min_ver)
+                    except (ValueError, TypeError):
+                        pass
+        except Exception:
+            pass
+        return (False, "")
+
     # --- helpers ---
     def set_token(self, token: str) -> None:
         # Record token and update session header. Log a short preview (not the full token).
