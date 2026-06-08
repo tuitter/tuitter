@@ -63,8 +63,14 @@ if os.getenv("TUITTER_DEBUG"):
             logging.getLogger("tuitter.api").exception("Failed to create debug logfile %s", _debug_logfile)
     _debug_logger.setLevel(logging.DEBUG)
 else:
-    # Ensure debug logger does not emit when TUITTER_DEBUG is not set
+    # Ensure debug logger does not emit when TUITTER_DEBUG is not set.
+    # .exception() logs at ERROR, and a logger with no handlers falls back to
+    # logging.lastResort (which prints to stderr). Attach a NullHandler so the
+    # handler-count is non-zero (suppresses lastResort) and stop propagation.
     _debug_logger.setLevel(logging.WARNING)
+    _debug_logger.propagate = False
+    if not any(isinstance(h, logging.NullHandler) for h in _debug_logger.handlers):
+        _debug_logger.addHandler(logging.NullHandler())
 
 @dataclass
 class User:
